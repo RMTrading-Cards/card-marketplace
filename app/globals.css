@@ -1,4 +1,13 @@
-@import "tailwindcss";
+
+/* globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* your custom CSS below */
+body {
+  @apply bg-zinc-50 dark:bg-black font-sans;
+}
 
 :root {
   --background: #ffffff;
