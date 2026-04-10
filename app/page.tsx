@@ -29,7 +29,7 @@ export default function Home() {
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState<SortOption>("name-asc");
+  const [sortBy, setSortBy] = useState<SortOption>("price-desc");
 
   useEffect(() => {
     const fetchCards = async () => {
@@ -163,7 +163,7 @@ export default function Home() {
 
       <main className="max-w-[1800px] mx-auto px-6 pb-10">
         {loading ? (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,240px))] gap-6">
             {Array.from({ length: 8 }).map((_, index) => (
               <div
                 key={index}
