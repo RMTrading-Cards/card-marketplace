@@ -163,7 +163,7 @@ export default function Home() {
 
       <main className="max-w-[1800px] mx-auto px-6 pb-10">
         {loading ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,240px))] gap-6">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,240px))] justify-center gap-6">
             {Array.from({ length: 8 }).map((_, index) => (
               <div
                 key={index}
@@ -182,7 +182,7 @@ export default function Home() {
             No cards found.
           </p>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,240px))] justify-center gap-6">
             {filteredAndSortedCards.map((card, index) => {
               const quantity = Number(card.quantity ?? 0);
               const soldOut = quantity <= 0;
@@ -190,7 +190,7 @@ export default function Home() {
               return (
                 <div
                   key={card.id}
-                  className="bg-zinc-800/95 border border-zinc-700 rounded-2xl shadow-xl overflow-hidden flex flex-col items-center p-4 transition duration-300 hover:-translate-y-1 hover:border-zinc-500 hover:shadow-2xl"
+                  className="bg-zinc-800/95 border border-zinc-700 rounded-2xl shadow-xl overflow-hidden flex flex-col items-center p-4 w-[240px] transition duration-300 hover:-translate-y-1 hover:border-zinc-500 hover:shadow-2xl"
                 >
                   <div className="relative w-full aspect-[5/7] mb-4 rounded-xl overflow-hidden bg-zinc-900">
                     {card.image_url ? (
