@@ -3,14 +3,22 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // or your sb_secret_... server key
-);
-
 export async function POST(req: Request) {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!stripeSecretKey || !supabaseUrl || !supabaseServiceKey || !webhookSecret) {
+    return NextResponse.json(
+      { error: "Missing required server environment variables" },
+      { status: 500 }
+    );
+  }
+
+  const stripe = new Stripe(stripeSecretKey);
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
   const body = await req.text();
   const signature = (await headers()).get("stripe-signature");
 
@@ -21,11 +29,7 @@ export async function POST(req: Request) {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
     console.error("Webhook signature verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });

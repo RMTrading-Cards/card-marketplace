@@ -29,5 +29,9 @@
     "postcss": "^8.5.9",
     "tailwindcss": "^3.4.19",
     "typescript": "^5"
+  },
+  "overrides": {
+    "glob": "^10.3.10",
+    "inflight": "^1.0.6"
   }
 }

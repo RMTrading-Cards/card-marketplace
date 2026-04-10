@@ -16,6 +16,7 @@ interface Card {
   price?: number | null;
   image_url?: string | null;
   quantity?: number | null;
+  more_data?: string | null;
 }
 
 type SortOption =
@@ -73,7 +74,7 @@ export default function Home() {
         break;
     }
 
-    // Move sold out to bottom
+    // Move sold out cards to bottom
     sorted.sort((a, b) => {
       const aSoldOut = Number(a.quantity ?? 0) <= 0;
       const bSoldOut = Number(b.quantity ?? 0) <= 0;
@@ -126,7 +127,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-white">
-      {/* HEADER */}
       <header className="flex flex-col items-center py-10 px-4">
         <h1
           className={`${inter.className} text-5xl md:text-6xl font-extrabold tracking-tight text-center`}
@@ -138,7 +138,6 @@ export default function Home() {
         </h1>
       </header>
 
-      {/* SEARCH + SORT */}
       <section className="max-w-[1800px] mx-auto px-6 mb-8">
         <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
           <input
@@ -162,7 +161,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CARDS */}
       <main className="max-w-[1800px] mx-auto px-6 pb-10">
         {loading ? (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6">
@@ -174,7 +172,7 @@ export default function Home() {
                 <div className="w-full aspect-[5/7] mb-4 rounded-xl bg-zinc-700/60" />
                 <div className="h-6 w-3/4 mx-auto rounded bg-zinc-700/60 mb-3" />
                 <div className="h-6 w-1/3 mx-auto rounded bg-zinc-700/60 mb-2" />
-                <div className="h-4 w-1/4 mx-auto rounded bg-zinc-700/50 mb-4" />
+                <div className="h-4 w-2/3 mx-auto rounded bg-zinc-700/50 mb-4" />
                 <div className="h-10 w-full rounded-lg bg-zinc-700/60" />
               </div>
             ))}
@@ -205,8 +203,8 @@ export default function Home() {
                                  (max-width: 1024px) 50vw,
                                  (max-width: 1536px) 33vw,
                                  240px"
-                          loading={index < 200 ? "eager" : "lazy"}
-                          priority={index < 200}
+                          loading={index < 4 ? "eager" : "lazy"}
+                          priority={index < 4}
                           className="object-contain"
                         />
 
@@ -233,9 +231,20 @@ export default function Home() {
                     ${Number(card.price ?? 0).toFixed(2)}
                   </p>
 
-                  <p className="text-sm text-zinc-400 mt-1">
-                    {soldOut ? "Out of stock" : `In stock: ${quantity}`}
-                  </p>
+                  <div className="mt-1 flex items-center gap-3 text-sm text-zinc-400">
+                    <span>{soldOut ? "Out of stock" : `In stock: ${quantity}`}</span>
+
+                    {card.more_data && (
+                      <a
+                        href={card.more_data}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                      >
+                        More data
+                      </a>
+                    )}
+                  </div>
 
                   <button
                     onClick={() =>
