@@ -65,14 +65,19 @@ export async function addCardToCollection(formData) {
     ? Number(formData.get("purchase_price"))
     : null
 
-  const { data: existing, error: findError } = await supabase
+  let existingQuery = supabase
     .from("user_cards")
     .select("id, quantity")
     .eq("user_id", user.id)
     .eq("card_id", cardId)
     .eq("condition", condition)
-    .maybeSingle()
 
+  existingQuery =
+    purchasePrice == null
+      ? existingQuery.is("purchase_price", null)
+      : existingQuery.eq("purchase_price", purchasePrice)
+
+  const { data: existing, error: findError } = await existingQuery.maybeSingle()
   if (findError) throw new Error(findError.message)
 
   if (existing) {
@@ -98,8 +103,25 @@ export async function addCardToCollection(formData) {
 export async function removeCardFromCollection(formData) {
   const supabase = await createClient()
   const id = formData.get("id")
-  const { error } = await supabase.from("user_cards").delete().eq("id", id)
-  if (error) throw new Error(error.message)
+
+  const { data: existing, error: findError } = await supabase
+    .from("user_cards")
+    .select("quantity")
+    .eq("id", id)
+    .maybeSingle()
+  if (findError) throw new Error(findError.message)
+
+  if (existing && existing.quantity > 1) {
+    const { error } = await supabase
+      .from("user_cards")
+      .update({ quantity: existing.quantity - 1 })
+      .eq("id", id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from("user_cards").delete().eq("id", id)
+    if (error) throw new Error(error.message)
+  }
+
   revalidatePath("/collection")
 }
 
@@ -114,13 +136,18 @@ export async function addSealedToCollection(formData) {
     ? Number(formData.get("purchase_price"))
     : null
 
-  const { data: existing, error: findError } = await supabase
+  let existingQuery = supabase
     .from("user_sealed_items")
     .select("id, quantity")
     .eq("user_id", user.id)
     .eq("product_id", productId)
-    .maybeSingle()
 
+  existingQuery =
+    purchasePrice == null
+      ? existingQuery.is("purchase_price", null)
+      : existingQuery.eq("purchase_price", purchasePrice)
+
+  const { data: existing, error: findError } = await existingQuery.maybeSingle()
   if (findError) throw new Error(findError.message)
 
   if (existing) {
@@ -152,7 +179,24 @@ export async function addSealedToCollection(formData) {
 export async function removeSealedFromCollection(formData) {
   const supabase = await createClient()
   const id = formData.get("id")
-  const { error } = await supabase.from("user_sealed_items").delete().eq("id", id)
-  if (error) throw new Error(error.message)
+
+  const { data: existing, error: findError } = await supabase
+    .from("user_sealed_items")
+    .select("quantity")
+    .eq("id", id)
+    .maybeSingle()
+  if (findError) throw new Error(findError.message)
+
+  if (existing && existing.quantity > 1) {
+    const { error } = await supabase
+      .from("user_sealed_items")
+      .update({ quantity: existing.quantity - 1 })
+      .eq("id", id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from("user_sealed_items").delete().eq("id", id)
+    if (error) throw new Error(error.message)
+  }
+
   revalidatePath("/collection")
 }
