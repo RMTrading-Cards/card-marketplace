@@ -20,7 +20,7 @@ const inputStyle = {
   color: "#ffffff",
   borderRadius: 6,
   padding: "6px 8px",
-  fontSize: 14,
+  fontSize: 16,
   boxSizing: "border-box",
 }
 
@@ -149,7 +149,7 @@ export default function AddSealedSearch({ onAdded }) {
             color: "#ffffff",
             borderRadius: 8,
             padding: "12px 16px",
-            fontSize: 14,
+            fontSize: 16,
             boxSizing: "border-box",
           }}
         />
