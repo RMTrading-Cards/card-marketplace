@@ -67,14 +67,18 @@ function SealedResult({ product, onAdded }) {
         <input type="hidden" name="set_name" value={product.setName} />
         <input type="hidden" name="image_url" value={product.imageUrl} />
         <input type="hidden" name="market_price" value={product.unopenedPrice} />
-        <input
+        <select
           name="quantity"
-          type="number"
           value={quantity}
-          min={1}
-          onChange={(e) => setQuantity(Number(e.target.value) || 1)}
+          onChange={(e) => setQuantity(Number(e.target.value))}
           style={inputStyle}
-        />
+        >
+          {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
+            <option key={n} value={n}>
+              Qty: {n}
+            </option>
+          ))}
+        </select>
         <input
           name="purchase_price"
           type="number"

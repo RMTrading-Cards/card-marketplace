@@ -94,14 +94,18 @@ function CardResult({ card, onAdded }) {
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input type="hidden" name="card_id" value={card.id} />
-        <input
+        <select
           name="quantity"
-          type="number"
           value={quantity}
-          min={1}
-          onChange={(e) => setQuantity(Number(e.target.value) || 1)}
+          onChange={(e) => setQuantity(Number(e.target.value))}
           style={inputStyle}
-        />
+        >
+          {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
+            <option key={n} value={n}>
+              Qty: {n}
+            </option>
+          ))}
+        </select>
         <select
           name="condition"
           defaultValue="NM"
