@@ -1,0 +1,145 @@
+﻿"use client"
+import { useState, useTransition } from "react"
+import { searchCards, addCardToCollection } from "./actions"
+
+function formatPrice(n) {
+  return n == null ? "N/A" : `$${n.toFixed(2)}`
+}
+
+function CardResult({ card }) {
+  const market = card.tcgplayer_market_price
+  const [quantity, setQuantity] = useState(1)
+  const [purchasePrice, setPurchasePrice] = useState("")
+
+  const parsedPrice = purchasePrice === "" ? null : Number(purchasePrice)
+
+  const thresholds = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+
+  return (
+    <div className="bg-[#141414] border border-[#2a2a2a] rounded-lg p-3">
+      {card.image_small && (
+        <img src={card.image_small} alt={card.name} className="w-full rounded mb-2" />
+      )}
+      <p className="text-white font-semibold text-sm mb-1">
+        {card.name}
+        {card.card_number && card.set_total && (
+          <span className="text-gray-400"> {card.card_number}/{card.set_total}</span>
+        )}
+      </p>
+      <p className="text-gray-400 text-xs mb-2">
+        {card.set_name}
+        {card.release_year && ` · ${card.release_year}`}
+      </p>
+      <p className="text-white text-sm mb-2">Market: {formatPrice(market)}</p>
+
+      {market != null && (
+        <div className="mb-3 space-y-0.5" style={{ fontSize: "11px" }}>
+          {thresholds.map((pct) => {
+            const value = market * pct
+            const diff =
+              parsedPrice != null ? (value - parsedPrice) * quantity : null
+            return (
+              <div key={pct} className="flex justify-between text-gray-300">
+                <span>{Math.round(pct * 100)}% = {formatPrice(value)}</span>
+                {diff != null && (
+                  <span
+                    className={diff >= 0 ? "text-green-400" : "text-red-400"}
+                    style={{ marginLeft: 8 }}
+                  >
+                    {diff >= 0 ? "+" : ""}
+                    {diff.toFixed(2)}
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <form action={addCardToCollection} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <input type="hidden" name="card_id" value={card.id} />
+        <input
+          name="quantity"
+          type="number"
+          value={quantity}
+          min={1}
+          onChange={(e) => setQuantity(Number(e.target.value) || 1)}
+          className="w-full bg-[#0d0d0d] border border-[#2a2a2a] text-white rounded px-2 py-1 text-sm"
+        />
+        <select
+          name="condition"
+          defaultValue="NM"
+          className="w-full bg-[#0d0d0d] border border-[#2a2a2a] text-white rounded px-2 py-1 text-sm"
+        >
+          <option value="NM">Near Mint</option>
+          <option value="LP">Lightly Played</option>
+          <option value="MP">Moderately Played</option>
+          <option value="HP">Heavily Played</option>
+          <option value="DMG">Damaged</option>
+        </select>
+        <input
+          name="purchase_price"
+          type="number"
+          step="0.01"
+          placeholder="Your purchase price"
+          value={purchasePrice}
+          onChange={(e) => setPurchasePrice(e.target.value)}
+          className="w-full bg-[#0d0d0d] border border-[#2a2a2a] text-white rounded px-2 py-1 text-sm"
+        />
+        <button
+          type="submit"
+          style={{
+            width: "100%",
+            backgroundColor: "#F2B705",
+            color: "#000000",
+            fontWeight: 600,
+            borderRadius: "6px",
+            padding: "6px 12px",
+            fontSize: "14px",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          Add to Collection
+        </button>
+      </form>
+    </div>
+  )
+}
+
+export default function SearchAndAdd() {
+  const [query, setQuery] = useState("")
+  const [results, setResults] = useState([])
+  const [isPending, startTransition] = useTransition()
+
+  function handleChange(e) {
+    const value = e.target.value
+    setQuery(value)
+    startTransition(async () => {
+      const data = await searchCards(value)
+      setResults(data || [])
+    })
+  }
+
+  return (
+    <div>
+      <input
+        type="text"
+        placeholder="Search cards..."
+        value={query}
+        onChange={handleChange}
+        className="w-full max-w-xl bg-[#141414] border border-[#2a2a2a] text-white placeholder-gray-400
+                   rounded-lg px-4 py-3 mb-4 focus:outline-none focus:border-[#F2B705]"
+      />
+      {isPending && <p className="text-white mb-4">Searching...</p>}
+      <div
+        className="grid gap-4"
+        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
+      >
+        {results.map((card) => (
+          <CardResult key={card.id} card={card} />
+        ))}
+      </div>
+    </div>
+  )
+}

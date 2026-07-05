@@ -11,7 +11,9 @@
   "dependencies": {
     "@stripe/react-stripe-js": "^6.1.0",
     "@stripe/stripe-js": "^9.1.0",
+    "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.102.1",
+    "dotenv": "^17.4.2",
     "next": "^16.2.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
