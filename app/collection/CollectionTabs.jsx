@@ -8,10 +8,9 @@ function formatPrice(n) {
   return n == null ? "—" : `$${n.toFixed(2)}`
 }
 
-function ThresholdRow({ label, value, purchasePrice, quantity }) {
+function ThresholdRow({ label, value, purchasePrice }) {
   if (value == null) return null
-  const diff =
-    purchasePrice != null ? (value - purchasePrice) * quantity : null
+  const diff = purchasePrice != null ? value - purchasePrice : null
 
   return (
     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
@@ -145,10 +144,10 @@ export default function CollectionTabs({ myCards, mySealed }) {
                     </div>
 
                     <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2 }}>
-                      <ThresholdRow label="85%" value={market != null ? market * 0.85 : null} purchasePrice={purchasePrice} quantity={quantity} />
-                      <ThresholdRow label="90%" value={market != null ? market * 0.9 : null} purchasePrice={purchasePrice} quantity={quantity} />
-                      <ThresholdRow label="95%" value={market != null ? market * 0.95 : null} purchasePrice={purchasePrice} quantity={quantity} />
-                      <ThresholdRow label="Market" value={market} purchasePrice={purchasePrice} quantity={quantity} />
+                      <ThresholdRow label="85%" value={market != null ? market * 0.85 : null} purchasePrice={purchasePrice} />
+                      <ThresholdRow label="90%" value={market != null ? market * 0.9 : null} purchasePrice={purchasePrice} />
+                      <ThresholdRow label="95%" value={market != null ? market * 0.95 : null} purchasePrice={purchasePrice} />
+                      <ThresholdRow label="Market" value={market} purchasePrice={purchasePrice} />
                     </div>
                   </div>
                   <form action={removeCardFromCollection}>
@@ -173,7 +172,7 @@ export default function CollectionTabs({ myCards, mySealed }) {
             {mySealed?.map((item) => {
               const diff =
                 item.market_price != null && item.purchase_price != null
-                  ? (item.market_price - item.purchase_price) * item.quantity
+                  ? item.market_price - item.purchase_price
                   : null
               return (
                 <div key={item.id} style={rowBox}>

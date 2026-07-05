@@ -30,8 +30,7 @@ function SealedResult({ product, onAdded }) {
   const [submitting, setSubmitting] = useState(false)
   const router = useRouter()
   const parsedPrice = purchasePrice === "" ? null : Number(purchasePrice)
-  const diff =
-    parsedPrice != null ? (product.unopenedPrice - parsedPrice) * quantity : null
+  const diff = parsedPrice != null ? product.unopenedPrice - parsedPrice : null
 
   async function handleSubmit(e) {
     e.preventDefault()

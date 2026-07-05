@@ -1,5 +1,5 @@
 ﻿"use client"
-import { useState, useTransition } from "react"
+import { useState, useTransition, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { searchCards, addCardToCollection } from "./actions"
 
@@ -64,9 +64,9 @@ function CardResult({ card, onAdded }) {
       <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8, display: "flex", justifyContent: "space-between", maxWidth: 220 }}>
         <span>Market: {formatPrice(market)}</span>
         {market != null && parsedPrice != null && (
-          <span style={{ color: (market - parsedPrice) * quantity >= 0 ? "#4ade80" : "#f87171" }}>
-            {(market - parsedPrice) * quantity >= 0 ? "+" : ""}
-            {((market - parsedPrice) * quantity).toFixed(2)}
+          <span style={{ color: market - parsedPrice >= 0 ? "#4ade80" : "#f87171" }}>
+            {market - parsedPrice >= 0 ? "+" : ""}
+            {(market - parsedPrice).toFixed(2)}
           </span>
         )}
       </p>
@@ -75,8 +75,7 @@ function CardResult({ card, onAdded }) {
         <div style={{ marginBottom: 12 }}>
           {thresholds.map((pct) => {
             const value = market * pct
-            const diff =
-              parsedPrice != null ? (value - parsedPrice) * quantity : null
+            const diff = parsedPrice != null ? value - parsedPrice : null
             return (
               <div key={pct} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#d1d5db", marginBottom: 2 }}>
                 <span>{Math.round(pct * 100)}% = {formatPrice(value)}</span>
@@ -106,11 +105,7 @@ function CardResult({ card, onAdded }) {
             </option>
           ))}
         </select>
-        <select
-          name="condition"
-          defaultValue="NM"
-          style={inputStyle}
-        >
+        <select name="condition" defaultValue="NM" style={inputStyle}>
           <option value="NM">Near Mint</option>
           <option value="LP">Lightly Played</option>
           <option value="MP">Moderately Played</option>
@@ -154,14 +149,23 @@ export default function AddCardsSearch({ onAdded }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])
   const [isPending, startTransition] = useTransition()
+  const [sortBy, setSortBy] = useState("name")
+  const debounceRef = useRef(null)
 
-  function handleChange(e) {
-    const value = e.target.value
-    setQuery(value)
+  function runSearch(value) {
     startTransition(async () => {
       const data = await searchCards(value)
       setResults(data || [])
     })
+  }
+
+  function handleChange(e) {
+    const value = e.target.value
+    setQuery(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      runSearch(value)
+    }, 300)
   }
 
   function handleAdded() {
@@ -170,26 +174,55 @@ export default function AddCardsSearch({ onAdded }) {
     onAdded()
   }
 
+  const sortedResults = useMemo(() => {
+    const list = [...results]
+    if (sortBy === "name") {
+      list.sort((a, b) => a.name.localeCompare(b.name))
+    } else if (sortBy === "price_desc") {
+      list.sort((a, b) => (b.tcgplayer_market_price ?? -1) - (a.tcgplayer_market_price ?? -1))
+    } else if (sortBy === "price_asc") {
+      list.sort((a, b) => (a.tcgplayer_market_price ?? Infinity) - (b.tcgplayer_market_price ?? Infinity))
+    }
+    return list
+  }, [results, sortBy])
+
   return (
     <div>
-      <input
-        type="text"
-        placeholder="Search cards..."
-        value={query}
-        onChange={handleChange}
-        style={{
-          width: "100%",
-          maxWidth: 576,
-          backgroundColor: "#141414",
-          border: "1px solid #2a2a2a",
-          color: "#ffffff",
-          borderRadius: 8,
-          padding: "12px 16px",
-          fontSize: 14,
-          marginBottom: 16,
-          boxSizing: "border-box",
-        }}
-      />
+      <div style={{ display: "flex", gap: 8, maxWidth: 576, marginBottom: 16, flexWrap: "wrap" }}>
+        <input
+          type="text"
+          placeholder="Search cards..."
+          value={query}
+          onChange={handleChange}
+          style={{
+            flex: 1,
+            minWidth: 200,
+            backgroundColor: "#141414",
+            border: "1px solid #2a2a2a",
+            color: "#ffffff",
+            borderRadius: 8,
+            padding: "12px 16px",
+            fontSize: 14,
+            boxSizing: "border-box",
+          }}
+        />
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          style={{
+            backgroundColor: "#141414",
+            border: "1px solid #2a2a2a",
+            color: "#ffffff",
+            borderRadius: 8,
+            padding: "0 12px",
+            fontSize: 14,
+          }}
+        >
+          <option value="name">Name A → Z</option>
+          <option value="price_desc">Price High → Low</option>
+          <option value="price_asc">Price Low → High</option>
+        </select>
+      </div>
       {isPending && <p style={{ color: "#ffffff", marginBottom: 16 }}>Searching...</p>}
       <div
         style={{
@@ -198,7 +231,7 @@ export default function AddCardsSearch({ onAdded }) {
           gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
         }}
       >
-        {results.map((card) => (
+        {sortedResults.map((card) => (
           <CardResult key={card.id} card={card} onAdded={handleAdded} />
         ))}
       </div>
