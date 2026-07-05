@@ -53,31 +53,45 @@ export async function searchSealedProducts(query) {
   }
 }
 
-export async function searchAll(query) {
-  const [cards, sealed] = await Promise.all([
-    searchCards(query),
-    searchSealedProducts(query),
-  ])
-  const taggedCards = (cards || []).map((c) => ({ ...c, itemType: "card" }))
-  const taggedSealed = (sealed || []).map((s) => ({ ...s, itemType: "sealed" }))
-  return [...taggedCards, ...taggedSealed]
-}
-
 export async function addCardToCollection(formData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Not authenticated")
 
-  const { error } = await supabase.from("user_cards").insert({
-    user_id: user.id,
-    card_id: formData.get("card_id"),
-    quantity: Number(formData.get("quantity")) || 1,
-    purchase_price: formData.get("purchase_price")
-      ? Number(formData.get("purchase_price"))
-      : null,
-    condition: formData.get("condition") || "NM",
-  })
-  if (error) throw new Error(error.message)
+  const cardId = formData.get("card_id")
+  const condition = formData.get("condition") || "NM"
+  const quantity = Number(formData.get("quantity")) || 1
+  const purchasePrice = formData.get("purchase_price")
+    ? Number(formData.get("purchase_price"))
+    : null
+
+  const { data: existing, error: findError } = await supabase
+    .from("user_cards")
+    .select("id, quantity")
+    .eq("user_id", user.id)
+    .eq("card_id", cardId)
+    .eq("condition", condition)
+    .maybeSingle()
+
+  if (findError) throw new Error(findError.message)
+
+  if (existing) {
+    const { error } = await supabase
+      .from("user_cards")
+      .update({ quantity: existing.quantity + quantity })
+      .eq("id", existing.id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from("user_cards").insert({
+      user_id: user.id,
+      card_id: cardId,
+      quantity,
+      purchase_price: purchasePrice,
+      condition,
+    })
+    if (error) throw new Error(error.message)
+  }
+
   revalidatePath("/collection")
 }
 
@@ -94,22 +108,44 @@ export async function addSealedToCollection(formData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Not authenticated")
 
-  const { error } = await supabase.from("user_sealed_items").insert({
-    user_id: user.id,
-    product_id: formData.get("product_id"),
-    tcgplayer_id: formData.get("tcgplayer_id"),
-    name: formData.get("name"),
-    set_name: formData.get("set_name"),
-    image_url: formData.get("image_url"),
-    market_price: formData.get("market_price")
-      ? Number(formData.get("market_price"))
-      : null,
-    quantity: Number(formData.get("quantity")) || 1,
-    purchase_price: formData.get("purchase_price")
-      ? Number(formData.get("purchase_price"))
-      : null,
-  })
-  if (error) throw new Error(error.message)
+  const productId = formData.get("product_id")
+  const quantity = Number(formData.get("quantity")) || 1
+  const purchasePrice = formData.get("purchase_price")
+    ? Number(formData.get("purchase_price"))
+    : null
+
+  const { data: existing, error: findError } = await supabase
+    .from("user_sealed_items")
+    .select("id, quantity")
+    .eq("user_id", user.id)
+    .eq("product_id", productId)
+    .maybeSingle()
+
+  if (findError) throw new Error(findError.message)
+
+  if (existing) {
+    const { error } = await supabase
+      .from("user_sealed_items")
+      .update({ quantity: existing.quantity + quantity })
+      .eq("id", existing.id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from("user_sealed_items").insert({
+      user_id: user.id,
+      product_id: productId,
+      tcgplayer_id: formData.get("tcgplayer_id"),
+      name: formData.get("name"),
+      set_name: formData.get("set_name"),
+      image_url: formData.get("image_url"),
+      market_price: formData.get("market_price")
+        ? Number(formData.get("market_price"))
+        : null,
+      quantity,
+      purchase_price: purchasePrice,
+    })
+    if (error) throw new Error(error.message)
+  }
+
   revalidatePath("/collection")
 }
 
