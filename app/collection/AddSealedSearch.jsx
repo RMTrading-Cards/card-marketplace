@@ -7,6 +7,23 @@ function formatPrice(n) {
   return n == null ? "N/A" : `$${n.toFixed(2)}`
 }
 
+const cardBox = {
+  backgroundColor: "#141414",
+  border: "1px solid #2a2a2a",
+  borderRadius: 8,
+  padding: 12,
+}
+const inputStyle = {
+  width: "100%",
+  backgroundColor: "#0d0d0d",
+  border: "1px solid #2a2a2a",
+  color: "#ffffff",
+  borderRadius: 6,
+  padding: "6px 8px",
+  fontSize: 14,
+  boxSizing: "border-box",
+}
+
 function SealedResult({ product, onAdded }) {
   const [quantity, setQuantity] = useState(1)
   const [purchasePrice, setPurchasePrice] = useState("")
@@ -27,23 +44,23 @@ function SealedResult({ product, onAdded }) {
   }
 
   return (
-    <div className="bg-[#141414] border border-[#2a2a2a] rounded-lg p-3">
+    <div style={cardBox}>
       {product.imageUrl && (
-        <img src={product.imageUrl} alt={product.name} className="w-full rounded mb-2" />
+        <img src={product.imageUrl} alt={product.name} style={{ width: "100%", borderRadius: 6, marginBottom: 8 }} />
       )}
-      <p className="text-white font-semibold text-sm mb-1">{product.name}</p>
-      <p className="text-gray-400 text-xs mb-2">{product.setName}</p>
-      <p className="text-white text-sm mb-2">
+      <p style={{ color: "#ffffff", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{product.name}</p>
+      <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 8 }}>{product.setName}</p>
+      <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8 }}>
         Market: {formatPrice(product.unopenedPrice)}
       </p>
       {diff != null && (
-        <p className={diff >= 0 ? "text-green-400 text-xs mb-2" : "text-red-400 text-xs mb-2"}>
+        <p style={{ color: diff >= 0 ? "#4ade80" : "#f87171", fontSize: 12, marginBottom: 8 }}>
           {diff >= 0 ? "+" : ""}
           {diff.toFixed(2)} at market
         </p>
       )}
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input type="hidden" name="product_id" value={product.id} />
         <input type="hidden" name="tcgplayer_id" value={product.tcgPlayerId} />
         <input type="hidden" name="name" value={product.name} />
@@ -56,7 +73,7 @@ function SealedResult({ product, onAdded }) {
           value={quantity}
           min={1}
           onChange={(e) => setQuantity(Number(e.target.value) || 1)}
-          className="w-full bg-[#0d0d0d] border border-[#2a2a2a] text-white rounded px-2 py-1 text-sm"
+          style={inputStyle}
         />
         <input
           name="purchase_price"
@@ -65,7 +82,7 @@ function SealedResult({ product, onAdded }) {
           placeholder="Your purchase price"
           value={purchasePrice}
           onChange={(e) => setPurchasePrice(e.target.value)}
-          className="w-full bg-[#0d0d0d] border border-[#2a2a2a] text-white rounded px-2 py-1 text-sm"
+          style={inputStyle}
         />
         <button
           type="submit"
@@ -76,9 +93,9 @@ function SealedResult({ product, onAdded }) {
             backgroundColor: "#F2B705",
             color: "#000000",
             fontWeight: 600,
-            borderRadius: "6px",
+            borderRadius: 6,
             padding: "6px 12px",
-            fontSize: "14px",
+            fontSize: 14,
             border: "none",
             cursor: submitting ? "default" : "pointer",
             opacity: submitting ? 0.7 : 1,
@@ -115,15 +132,23 @@ export default function AddSealedSearch({ onAdded }) {
 
   return (
     <div>
-      <div className="flex gap-2 max-w-xl mb-4">
+      <div style={{ display: "flex", gap: 8, maxWidth: 576, marginBottom: 16 }}>
         <input
           type="text"
           placeholder="Search booster boxes, ETBs, etc. — press Enter"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="flex-1 bg-[#141414] border border-[#2a2a2a] text-white placeholder-gray-400
-                     rounded-lg px-4 py-3 focus:outline-none focus:border-[#F2B705]"
+          style={{
+            flex: 1,
+            backgroundColor: "#141414",
+            border: "1px solid #2a2a2a",
+            color: "#ffffff",
+            borderRadius: 8,
+            padding: "12px 16px",
+            fontSize: 14,
+            boxSizing: "border-box",
+          }}
         />
         <button
           onClick={runSearch}
@@ -132,7 +157,7 @@ export default function AddSealedSearch({ onAdded }) {
             backgroundColor: "#F2B705",
             color: "#000000",
             fontWeight: 600,
-            borderRadius: "8px",
+            borderRadius: 8,
             padding: "0 20px",
             border: "none",
             cursor: "pointer",
@@ -141,10 +166,13 @@ export default function AddSealedSearch({ onAdded }) {
           Search
         </button>
       </div>
-      {isPending && <p className="text-white mb-4">Searching...</p>}
+      {isPending && <p style={{ color: "#ffffff", marginBottom: 16 }}>Searching...</p>}
       <div
-        className="grid gap-4"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+        }}
       >
         {results.map((product) => (
           <SealedResult key={product.id} product={product} onAdded={handleAdded} />

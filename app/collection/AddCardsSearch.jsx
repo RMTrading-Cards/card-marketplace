@@ -7,6 +7,23 @@ function formatPrice(n) {
   return n == null ? "N/A" : `$${n.toFixed(2)}`
 }
 
+const cardBox = {
+  backgroundColor: "#141414",
+  border: "1px solid #2a2a2a",
+  borderRadius: 8,
+  padding: 12,
+}
+const inputStyle = {
+  width: "100%",
+  backgroundColor: "#0d0d0d",
+  border: "1px solid #2a2a2a",
+  color: "#ffffff",
+  borderRadius: 6,
+  padding: "6px 8px",
+  fontSize: 14,
+  boxSizing: "border-box",
+}
+
 function CardResult({ card, onAdded }) {
   const market = card.tcgplayer_market_price
   const [quantity, setQuantity] = useState(1)
@@ -27,27 +44,27 @@ function CardResult({ card, onAdded }) {
   }
 
   return (
-    <div className="bg-[#141414] border border-[#2a2a2a] rounded-lg p-3">
+    <div style={cardBox}>
       {card.image_small && (
-        <img src={card.image_small} alt={card.name} className="w-full rounded mb-2" />
+        <img src={card.image_small} alt={card.name} style={{ width: "100%", borderRadius: 6, marginBottom: 8 }} />
       )}
-      <p className="text-white font-semibold text-sm mb-1">
+      <p style={{ color: "#ffffff", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
         {card.name}
         {card.card_number && card.set_total && (
-          <span className="text-gray-400"> {card.card_number}/{card.set_total}</span>
+          <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
         )}
       </p>
-      <p className="text-gray-400 text-xs mb-1">
+      <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>
         {card.set_name}
         {card.release_year && ` · ${card.release_year}`}
       </p>
       {card.rarity && (
-        <p className="text-xs mb-2" style={{ color: "#F2B705" }}>{card.rarity}</p>
+        <p style={{ color: "#F2B705", fontSize: 12, marginBottom: 8 }}>{card.rarity}</p>
       )}
-      <p className="text-white text-sm mb-2 flex justify-between" style={{ maxWidth: 220 }}>
+      <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8, display: "flex", justifyContent: "space-between", maxWidth: 220 }}>
         <span>Market: {formatPrice(market)}</span>
         {market != null && parsedPrice != null && (
-          <span className={(market - parsedPrice) * quantity >= 0 ? "text-green-400" : "text-red-400"}>
+          <span style={{ color: (market - parsedPrice) * quantity >= 0 ? "#4ade80" : "#f87171" }}>
             {(market - parsedPrice) * quantity >= 0 ? "+" : ""}
             {((market - parsedPrice) * quantity).toFixed(2)}
           </span>
@@ -55,19 +72,16 @@ function CardResult({ card, onAdded }) {
       </p>
 
       {market != null && (
-        <div className="mb-3 space-y-0.5" style={{ fontSize: "11px" }}>
+        <div style={{ marginBottom: 12 }}>
           {thresholds.map((pct) => {
             const value = market * pct
             const diff =
               parsedPrice != null ? (value - parsedPrice) * quantity : null
             return (
-              <div key={pct} className="flex justify-between text-gray-300">
+              <div key={pct} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#d1d5db", marginBottom: 2 }}>
                 <span>{Math.round(pct * 100)}% = {formatPrice(value)}</span>
                 {diff != null && (
-                  <span
-                    className={diff >= 0 ? "text-green-400" : "text-red-400"}
-                    style={{ marginLeft: 8 }}
-                  >
+                  <span style={{ color: diff >= 0 ? "#4ade80" : "#f87171", marginLeft: 8 }}>
                     {diff >= 0 ? "+" : ""}
                     {diff.toFixed(2)}
                   </span>
@@ -78,7 +92,7 @@ function CardResult({ card, onAdded }) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input type="hidden" name="card_id" value={card.id} />
         <input
           name="quantity"
@@ -86,12 +100,12 @@ function CardResult({ card, onAdded }) {
           value={quantity}
           min={1}
           onChange={(e) => setQuantity(Number(e.target.value) || 1)}
-          className="w-full bg-[#0d0d0d] border border-[#2a2a2a] text-white rounded px-2 py-1 text-sm"
+          style={inputStyle}
         />
         <select
           name="condition"
           defaultValue="NM"
-          className="w-full bg-[#0d0d0d] border border-[#2a2a2a] text-white rounded px-2 py-1 text-sm"
+          style={inputStyle}
         >
           <option value="NM">Near Mint</option>
           <option value="LP">Lightly Played</option>
@@ -106,7 +120,7 @@ function CardResult({ card, onAdded }) {
           placeholder="Your purchase price"
           value={purchasePrice}
           onChange={(e) => setPurchasePrice(e.target.value)}
-          className="w-full bg-[#0d0d0d] border border-[#2a2a2a] text-white rounded px-2 py-1 text-sm"
+          style={inputStyle}
         />
         <button
           type="submit"
@@ -117,9 +131,9 @@ function CardResult({ card, onAdded }) {
             backgroundColor: "#F2B705",
             color: "#000000",
             fontWeight: 600,
-            borderRadius: "6px",
+            borderRadius: 6,
             padding: "6px 12px",
-            fontSize: "14px",
+            fontSize: 14,
             border: "none",
             cursor: submitting ? "default" : "pointer",
             opacity: submitting ? 0.7 : 1,
@@ -159,13 +173,26 @@ export default function AddCardsSearch({ onAdded }) {
         placeholder="Search cards..."
         value={query}
         onChange={handleChange}
-        className="w-full max-w-xl bg-[#141414] border border-[#2a2a2a] text-white placeholder-gray-400
-                   rounded-lg px-4 py-3 mb-4 focus:outline-none focus:border-[#F2B705]"
+        style={{
+          width: "100%",
+          maxWidth: 576,
+          backgroundColor: "#141414",
+          border: "1px solid #2a2a2a",
+          color: "#ffffff",
+          borderRadius: 8,
+          padding: "12px 16px",
+          fontSize: 14,
+          marginBottom: 16,
+          boxSizing: "border-box",
+        }}
       />
-      {isPending && <p className="text-white mb-4">Searching...</p>}
+      {isPending && <p style={{ color: "#ffffff", marginBottom: 16 }}>Searching...</p>}
       <div
-        className="grid gap-4"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+        }}
       >
         {results.map((card) => (
           <CardResult key={card.id} card={card} onAdded={handleAdded} />

@@ -14,16 +14,37 @@ function ThresholdRow({ label, value, purchasePrice, quantity }) {
     purchasePrice != null ? (value - purchasePrice) * quantity : null
 
   return (
-    <div className="flex justify-between text-xs">
-      <span className="text-gray-300">{label}: {formatPrice(value)}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+      <span style={{ color: "#d1d5db" }}>{label}: {formatPrice(value)}</span>
       {diff != null && (
-        <span className={diff >= 0 ? "text-green-400" : "text-red-400"} style={{ marginLeft: 8 }}>
+        <span style={{ color: diff >= 0 ? "#4ade80" : "#f87171", marginLeft: 8 }}>
           {diff >= 0 ? "+" : ""}
           {diff.toFixed(2)}
         </span>
       )}
     </div>
   )
+}
+
+const rowBox = {
+  display: "flex",
+  gap: 16,
+  alignItems: "center",
+  backgroundColor: "#141414",
+  border: "1px solid #2a2a2a",
+  borderRadius: 8,
+  padding: 12,
+}
+
+const tabButtonBase = {
+  padding: "8px 20px",
+  borderRadius: 6,
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: "pointer",
+  border: "1px solid #2a2a2a",
+  backgroundColor: "#141414",
+  color: "#ffffff",
 }
 
 export default function CollectionTabs({ myCards, mySealed }) {
@@ -67,52 +88,25 @@ export default function CollectionTabs({ myCards, mySealed }) {
         }
       `}</style>
 
-      <div className="flex gap-4 mb-6">
+      <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
         <button
           className={`rmt-tab${tab === "collection" ? " rmt-tab-active" : ""}`}
           onClick={() => setTab("collection")}
-          style={{
-            padding: "8px 20px",
-            borderRadius: 6,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-            border: "1px solid #2a2a2a",
-            backgroundColor: "#141414",
-            color: "#ffffff",
-          }}
+          style={tabButtonBase}
         >
           Collection
         </button>
         <button
           className={`rmt-tab${tab === "cards" ? " rmt-tab-active" : ""}`}
           onClick={() => setTab("cards")}
-          style={{
-            padding: "8px 20px",
-            borderRadius: 6,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-            border: "1px solid #2a2a2a",
-            backgroundColor: "#141414",
-            color: "#ffffff",
-          }}
+          style={tabButtonBase}
         >
           Add Cards
         </button>
         <button
           className={`rmt-tab${tab === "sealed" ? " rmt-tab-active" : ""}`}
           onClick={() => setTab("sealed")}
-          style={{
-            padding: "8px 20px",
-            borderRadius: 6,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-            border: "1px solid #2a2a2a",
-            backgroundColor: "#141414",
-            color: "#ffffff",
-          }}
+          style={tabButtonBase}
         >
           Add Sealed
         </button>
@@ -120,10 +114,10 @@ export default function CollectionTabs({ myCards, mySealed }) {
 
       {tab === "collection" && (
         <div>
-          <h2 className="text-xl font-bold text-white mb-3">
+          <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
             Your Cards ({myCards?.length ?? 0})
           </h2>
-          <div className="grid gap-3 mb-10">
+          <div style={{ display: "grid", gap: 12, marginBottom: 40 }}>
             {myCards?.map((item) => {
               const card = item.cards
               const market = card?.tcgplayer_market_price
@@ -131,30 +125,26 @@ export default function CollectionTabs({ myCards, mySealed }) {
               const purchasePrice = item.purchase_price
 
               return (
-                <div
-                  key={item.id}
-                  className="flex gap-4 items-center bg-[#141414] border border-[#2a2a2a] rounded-lg p-3"
-                >
+                <div key={item.id} style={rowBox}>
                   {card?.image_small && (
-                    <img src={card.image_small} alt={card.name} className="w-14 rounded" />
+                    <img src={card.image_small} alt={card.name} style={{ width: 56, borderRadius: 6 }} />
                   )}
-                  <div className="flex-1 text-white">
+                  <div style={{ flex: 1, color: "#ffffff" }}>
                     <strong>
                       {card?.name}
                       {card?.card_number && card?.set_total && (
-                        <span className="text-gray-400"> {card.card_number}/{card.set_total}</span>
+                        <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
                       )}
                     </strong>{" "}
-                    <span className="text-gray-400">
+                    <span style={{ color: "#9ca3af" }}>
                       ({card?.set_name}
                       {card?.release_year && ` · ${card.release_year}`})
                     </span>
-                    <div className="text-sm mb-1">
-                      Qty: {quantity} · Condition: {item.condition} · Paid:{" "}
-                      {formatPrice(purchasePrice)}
+                    <div style={{ fontSize: 13, marginBottom: 4 }}>
+                      Qty: {quantity} · Condition: {item.condition} · Paid: {formatPrice(purchasePrice)}
                     </div>
 
-                    <div className="space-y-0.5" style={{ maxWidth: 260 }}>
+                    <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2 }}>
                       <ThresholdRow label="85%" value={market != null ? market * 0.85 : null} purchasePrice={purchasePrice} quantity={quantity} />
                       <ThresholdRow label="90%" value={market != null ? market * 0.9 : null} purchasePrice={purchasePrice} quantity={quantity} />
                       <ThresholdRow label="95%" value={market != null ? market * 0.95 : null} purchasePrice={purchasePrice} quantity={quantity} />
@@ -176,32 +166,28 @@ export default function CollectionTabs({ myCards, mySealed }) {
             })}
           </div>
 
-          <h2 className="text-xl font-bold text-white mb-3">
+          <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
             Your Sealed Products ({mySealed?.length ?? 0})
           </h2>
-          <div className="grid gap-3">
+          <div style={{ display: "grid", gap: 12 }}>
             {mySealed?.map((item) => {
               const diff =
                 item.market_price != null && item.purchase_price != null
                   ? (item.market_price - item.purchase_price) * item.quantity
                   : null
               return (
-                <div
-                  key={item.id}
-                  className="flex gap-4 items-center bg-[#141414] border border-[#2a2a2a] rounded-lg p-3"
-                >
+                <div key={item.id} style={rowBox}>
                   {item.image_url && (
-                    <img src={item.image_url} alt={item.name} className="w-14 rounded" />
+                    <img src={item.image_url} alt={item.name} style={{ width: 56, borderRadius: 6 }} />
                   )}
-                  <div className="flex-1 text-white">
+                  <div style={{ flex: 1, color: "#ffffff" }}>
                     <strong>{item.name}</strong>{" "}
-                    <span className="text-gray-400">({item.set_name})</span>
-                    <div className="text-sm">
-                      Qty: {item.quantity} · Paid: {formatPrice(item.purchase_price)} · Market:{" "}
-                      {formatPrice(item.market_price)}
+                    <span style={{ color: "#9ca3af" }}>({item.set_name})</span>
+                    <div style={{ fontSize: 13 }}>
+                      Qty: {item.quantity} · Paid: {formatPrice(item.purchase_price)} · Market: {formatPrice(item.market_price)}
                     </div>
                     {diff != null && (
-                      <div className={diff >= 0 ? "text-green-400" : "text-red-400"}>
+                      <div style={{ color: diff >= 0 ? "#4ade80" : "#f87171" }}>
                         {diff >= 0 ? "+" : ""}
                         {diff.toFixed(2)}
                       </div>
