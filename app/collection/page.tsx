@@ -2,11 +2,21 @@
 import AddItemsSearch from "./AddItemsSearch"
 import { removeCardFromCollection, removeSealedFromCollection } from "./actions"
 
-function formatPrice(n) {
+function formatPrice(n: number | null | undefined) {
   return n == null ? "—" : `$${n.toFixed(2)}`
 }
 
-function ThresholdRow({ label, value, purchasePrice, quantity }) {
+function ThresholdRow({
+  label,
+  value,
+  purchasePrice,
+  quantity,
+}: {
+  label: string
+  value: number | null | undefined
+  purchasePrice: number | null | undefined
+  quantity: number
+}) {
   if (value == null) return null
   const diff =
     purchasePrice != null ? (value - purchasePrice) * quantity : null
@@ -33,13 +43,13 @@ export default async function Collection() {
     .select(
       "id, quantity, purchase_price, condition, cards(name, image_small, tcgplayer_market_price, set_name, card_number, set_total, release_year)"
     )
-    .eq("user_id", user.id)
+    .eq("user_id", user!.id)
     .order("created_at", { ascending: false })
 
   const { data: mySealed } = await supabase
     .from("user_sealed_items")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", user!.id)
     .order("created_at", { ascending: false })
 
   return (
@@ -57,7 +67,7 @@ export default async function Collection() {
           Your Cards ({myCards?.length ?? 0})
         </h2>
         <div className="grid gap-3 mb-10">
-          {myCards?.map((item) => {
+          {myCards?.map((item: any) => {
             const card = item.cards
             const market = card?.tcgplayer_market_price
             const quantity = item.quantity
@@ -133,7 +143,7 @@ export default async function Collection() {
           Your Sealed Products ({mySealed?.length ?? 0})
         </h2>
         <div className="grid gap-3">
-          {mySealed?.map((item) => {
+          {mySealed?.map((item: any) => {
             const diff =
               item.market_price != null && item.purchase_price != null
                 ? (item.market_price - item.purchase_price) * item.quantity
