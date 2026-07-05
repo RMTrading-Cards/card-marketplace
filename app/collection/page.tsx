@@ -1,9 +1,12 @@
 ﻿import { createClient } from "@/lib/supabase/server"
 import CollectionTabs from "./CollectionTabs"
+import ProfileMenu from "./ProfileMenu"
+import { getOrCreateProfile } from "./actions"
 
 export default async function Collection() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const profile = await getOrCreateProfile()
 
   const { data: myCards } = await supabase
     .from("user_cards")
@@ -22,10 +25,13 @@ export default async function Collection() {
   return (
     <div className="min-h-screen bg-[#0d0d0d]">
       <div className="max-w-6xl mx-auto px-6 py-10">
-        <h1 className="text-4xl font-black mb-10">
-          <span className="text-[#F2B705]">RMT</span>
-          <span className="text-white">rading Cards</span>
-        </h1>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 40, flexWrap: "wrap", gap: 16 }}>
+          <h1 className="text-4xl font-black">
+            <span className="text-[#F2B705]">RMT</span>
+            <span className="text-white">rading Cards</span>
+          </h1>
+          <ProfileMenu email={user!.email} username={profile?.username} />
+        </div>
 
         <CollectionTabs myCards={myCards || []} mySealed={mySealed || []} />
       </div>

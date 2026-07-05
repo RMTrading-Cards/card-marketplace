@@ -200,3 +200,41 @@ export async function removeSealedFromCollection(formData) {
 
   revalidatePath("/collection")
 }
+
+export async function getOrCreateProfile() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle()
+
+  if (existing) return existing
+
+  const { data: created } = await supabase
+    .from("profiles")
+    .insert({ id: user.id })
+    .select()
+    .single()
+
+  return created
+}
+
+export async function updateUsername(formData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const username = formData.get("username")?.toString().trim() || null
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ username })
+    .eq("id", user.id)
+
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
