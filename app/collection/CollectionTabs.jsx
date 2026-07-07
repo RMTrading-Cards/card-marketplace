@@ -126,7 +126,7 @@ function QuantityEditor({ id, itemType, quantity }) {
         color: "#ffffff",
         borderRadius: 6,
         padding: "2px 6px",
-        fontSize: 14,
+        fontSize: 16,
       }}
     >
       {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
@@ -165,13 +165,14 @@ function EditablePaid({ id, itemType, purchasePrice }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           style={{
-            width: 80,
+            width: 90,
             backgroundColor: "#0d0d0d",
             border: "1px solid #2a2a2a",
             color: "#ffffff",
             borderRadius: 6,
-            padding: "2px 6px",
-            fontSize: 14,
+            padding: "4px 6px",
+            fontSize: 16,
+            boxSizing: "border-box",
           }}
         />
         <button
@@ -189,7 +190,7 @@ function EditablePaid({ id, itemType, purchasePrice }) {
   return (
     <span
       onClick={() => setEditing(true)}
-      style={{ textDecoration: "underline dotted", cursor: "pointer" }}
+      style={{ textDecoration: "underline dotted", cursor: "pointer", fontWeight: 700 }}
       title="Click to edit"
     >
       Paid: {formatPrice(purchasePrice)}
