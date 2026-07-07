@@ -24,7 +24,7 @@ const inputStyle = {
   boxSizing: "border-box",
 }
 
-function CardResult({ card, onAdded }) {
+function CardResult({ card, onAdded, collectionId }) {
   const market = card.tcgplayer_market_price
   const [quantity, setQuantity] = useState(1)
   const [purchasePrice, setPurchasePrice] = useState("")
@@ -93,6 +93,7 @@ function CardResult({ card, onAdded }) {
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input type="hidden" name="card_id" value={card.id} />
+        <input type="hidden" name="collection_id" value={collectionId || ""} />
         <select
           name="quantity"
           value={quantity}
@@ -145,7 +146,7 @@ function CardResult({ card, onAdded }) {
   )
 }
 
-export default function AddCardsSearch({ onAdded }) {
+export default function AddCardsSearch({ onAdded, collectionId }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])
   const [isPending, startTransition] = useTransition()
@@ -232,7 +233,7 @@ export default function AddCardsSearch({ onAdded }) {
         }}
       >
         {sortedResults.map((card) => (
-          <CardResult key={card.id} card={card} onAdded={handleAdded} />
+          <CardResult key={card.id} card={card} onAdded={handleAdded} collectionId={collectionId} />
         ))}
       </div>
     </div>

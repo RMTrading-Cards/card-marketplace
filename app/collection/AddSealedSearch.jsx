@@ -24,7 +24,7 @@ const inputStyle = {
   boxSizing: "border-box",
 }
 
-function SealedResult({ product, onAdded }) {
+function SealedResult({ product, onAdded, collectionId }) {
   const [quantity, setQuantity] = useState(1)
   const [purchasePrice, setPurchasePrice] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -61,6 +61,7 @@ function SealedResult({ product, onAdded }) {
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input type="hidden" name="product_id" value={product.id} />
+        <input type="hidden" name="collection_id" value={collectionId || ""} />
         <input type="hidden" name="tcgplayer_id" value={product.tcgPlayerId} />
         <input type="hidden" name="name" value={product.name} />
         <input type="hidden" name="set_name" value={product.setName} />
@@ -111,7 +112,7 @@ function SealedResult({ product, onAdded }) {
   )
 }
 
-export default function AddSealedSearch({ onAdded }) {
+export default function AddSealedSearch({ onAdded, collectionId }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])
   const [isPending, startTransition] = useTransition()
@@ -178,7 +179,7 @@ export default function AddSealedSearch({ onAdded }) {
         }}
       >
         {results.map((product) => (
-          <SealedResult key={product.id} product={product} onAdded={handleAdded} />
+          <SealedResult key={product.id} product={product} onAdded={handleAdded} collectionId={collectionId} />
         ))}
       </div>
     </div>

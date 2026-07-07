@@ -64,6 +64,7 @@ export async function addCardToCollection(formData) {
   const purchasePrice = formData.get("purchase_price")
     ? Number(formData.get("purchase_price"))
     : null
+  const collectionId = formData.get("collection_id") || null
 
   let existingQuery = supabase
     .from("user_cards")
@@ -76,6 +77,10 @@ export async function addCardToCollection(formData) {
     purchasePrice == null
       ? existingQuery.is("purchase_price", null)
       : existingQuery.eq("purchase_price", purchasePrice)
+
+  existingQuery = collectionId
+    ? existingQuery.eq("collection_id", collectionId)
+    : existingQuery.is("collection_id", null)
 
   const { data: existing, error: findError } = await existingQuery.maybeSingle()
   if (findError) throw new Error(findError.message)
@@ -93,6 +98,7 @@ export async function addCardToCollection(formData) {
       quantity,
       purchase_price: purchasePrice,
       condition,
+      collection_id: collectionId,
     })
     if (error) throw new Error(error.message)
   }
@@ -135,6 +141,7 @@ export async function addSealedToCollection(formData) {
   const purchasePrice = formData.get("purchase_price")
     ? Number(formData.get("purchase_price"))
     : null
+  const collectionId = formData.get("collection_id") || null
 
   let existingQuery = supabase
     .from("user_sealed_items")
@@ -146,6 +153,10 @@ export async function addSealedToCollection(formData) {
     purchasePrice == null
       ? existingQuery.is("purchase_price", null)
       : existingQuery.eq("purchase_price", purchasePrice)
+
+  existingQuery = collectionId
+    ? existingQuery.eq("collection_id", collectionId)
+    : existingQuery.is("collection_id", null)
 
   const { data: existing, error: findError } = await existingQuery.maybeSingle()
   if (findError) throw new Error(findError.message)
@@ -169,6 +180,7 @@ export async function addSealedToCollection(formData) {
         : null,
       quantity,
       purchase_price: purchasePrice,
+      collection_id: collectionId,
     })
     if (error) throw new Error(error.message)
   }
@@ -235,6 +247,117 @@ export async function updateUsername(formData) {
     .update({ username })
     .eq("id", user.id)
 
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function getOrCreateMainCollection() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: existing } = await supabase
+    .from("collections")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("is_main", true)
+    .maybeSingle()
+
+  if (existing) return existing
+
+  const { data: created } = await supabase
+    .from("collections")
+    .insert({ user_id: user.id, name: "Main Collection", is_main: true })
+    .select()
+    .single()
+
+  return created
+}
+
+export async function listCollections() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data } = await supabase
+    .from("collections")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("is_main", { ascending: false })
+    .order("created_at", { ascending: true })
+
+  return data || []
+}
+
+export async function createCollection(formData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const name = formData.get("name")?.toString().trim()
+  if (!name) throw new Error("Name required")
+
+  const { error } = await supabase.from("collections").insert({ user_id: user.id, name })
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function renameCollection(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const name = formData.get("name")?.toString().trim()
+  if (!name) throw new Error("Name required")
+
+  const { error } = await supabase.from("collections").update({ name }).eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function deleteCollection(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+
+  const { data: target } = await supabase
+    .from("collections")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (target?.is_main) throw new Error("Cannot delete your Main Collection")
+
+  const main = await getOrCreateMainCollection()
+
+  await supabase.from("user_cards").update({ collection_id: main.id }).eq("collection_id", id)
+  await supabase.from("user_sealed_items").update({ collection_id: main.id }).eq("collection_id", id)
+
+  const { error } = await supabase.from("collections").delete().eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function setMainCollection(formData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const id = formData.get("id")
+
+  await supabase.from("collections").update({ is_main: false }).eq("user_id", user.id)
+  const { error } = await supabase.from("collections").update({ is_main: true }).eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function setManualPrice(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const itemType = formData.get("item_type")
+  const manualPrice = formData.get("manual_price")
+    ? Number(formData.get("manual_price"))
+    : null
+  const table = itemType === "sealed" ? "user_sealed_items" : "user_cards"
+
+  const { error } = await supabase.from(table).update({ manual_price: manualPrice }).eq("id", id)
   if (error) throw new Error(error.message)
   revalidatePath("/collection")
 }

@@ -1,17 +1,20 @@
 ﻿import { createClient } from "@/lib/supabase/server"
 import CollectionTabs from "./CollectionTabs"
 import ProfileMenu from "./ProfileMenu"
-import { getOrCreateProfile } from "./actions"
+import { getOrCreateProfile, getOrCreateMainCollection, listCollections } from "./actions"
 
 export default async function Collection() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const profile = await getOrCreateProfile()
+  await getOrCreateMainCollection()
+  const collections = await listCollections()
+  const mainCollection = collections.find((c) => c.is_main)
 
   const { data: myCards } = await supabase
     .from("user_cards")
     .select(
-      "id, quantity, purchase_price, condition, cards(name, image_small, tcgplayer_market_price, set_name, card_number, set_total, release_year)"
+      "id, quantity, purchase_price, condition, collection_id, manual_price, cards(name, image_small, tcgplayer_market_price, set_name, card_number, set_total, release_year)"
     )
     .eq("user_id", user!.id)
     .order("created_at", { ascending: false })
@@ -33,7 +36,12 @@ export default async function Collection() {
           <ProfileMenu email={user!.email} username={profile?.username} />
         </div>
 
-        <CollectionTabs myCards={myCards || []} mySealed={mySealed || []} />
+        <CollectionTabs
+          myCards={myCards || []}
+          mySealed={mySealed || []}
+          collections={collections}
+          mainCollectionId={mainCollection?.id}
+        />
       </div>
     </div>
   )
