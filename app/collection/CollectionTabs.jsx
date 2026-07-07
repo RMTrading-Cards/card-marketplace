@@ -56,7 +56,7 @@ function ManualPriceInput({ id, itemType, currentValue }) {
           color: "#ffffff",
           borderRadius: 6,
           padding: "4px 8px",
-          fontSize: 13,
+          fontSize: 16,
           width: 160,
         }}
       />
@@ -277,7 +277,6 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                 {filteredCards.map((row) => {
                   const card = row.cardMeta
                   const market = row.market
-                  const effectiveMarket = market ?? row.manualPrice
                   const purchasePrice = row.purchasePrice
 
                   return (

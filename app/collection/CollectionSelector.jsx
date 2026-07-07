@@ -120,7 +120,7 @@ export default function CollectionSelector({ collections, selectedId, onSelect }
                       color: "#ffffff",
                       borderRadius: 6,
                       padding: "6px 8px",
-                      fontSize: 14,
+                      fontSize: 16,
                     }}
                   />
                   <button
@@ -179,7 +179,7 @@ export default function CollectionSelector({ collections, selectedId, onSelect }
                   color: "#ffffff",
                   borderRadius: 6,
                   padding: "6px 8px",
-                  fontSize: 14,
+                  fontSize: 16,
                 }}
               />
               <button
