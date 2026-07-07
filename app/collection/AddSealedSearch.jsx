@@ -12,6 +12,18 @@ const cardBox = {
   border: "1px solid #2a2a2a",
   borderRadius: 8,
   padding: 12,
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+}
+const imageCol = {
+  flex: "1 1 40%",
+  maxWidth: 200,
+  minWidth: 110,
+}
+const infoCol = {
+  flex: "1 1 50%",
+  minWidth: 150,
 }
 const inputStyle = {
   width: "100%",
@@ -44,70 +56,74 @@ function SealedResult({ product, onAdded, collectionId }) {
 
   return (
     <div style={cardBox}>
-      {product.imageUrl && (
-        <img src={product.imageUrl} alt={product.name} style={{ width: "100%", borderRadius: 6, marginBottom: 8 }} />
-      )}
-      <p style={{ color: "#ffffff", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{product.name}</p>
-      <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 8 }}>{product.setName}</p>
-      <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8 }}>
-        Market: {formatPrice(product.unopenedPrice)}
-      </p>
-      {diff != null && (
-        <p style={{ color: diff >= 0 ? "#4ade80" : "#f87171", fontSize: 12, marginBottom: 8 }}>
-          {diff >= 0 ? "+" : ""}
-          {diff.toFixed(2)} at market
+      <div style={imageCol}>
+        {product.imageUrl && (
+          <img src={product.imageUrl} alt={product.name} style={{ width: "100%", borderRadius: 6 }} />
+        )}
+      </div>
+      <div style={infoCol}>
+        <p style={{ color: "#ffffff", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{product.name}</p>
+        <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 8 }}>{product.setName}</p>
+        <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8 }}>
+          Market: {formatPrice(product.unopenedPrice)}
         </p>
-      )}
+        {diff != null && (
+          <p style={{ color: diff >= 0 ? "#4ade80" : "#f87171", fontSize: 12, marginBottom: 8 }}>
+            {diff >= 0 ? "+" : ""}
+            {diff.toFixed(2)} at market
+          </p>
+        )}
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <input type="hidden" name="product_id" value={product.id} />
-        <input type="hidden" name="tcgplayer_id" value={product.tcgPlayerId} />
-        <input type="hidden" name="name" value={product.name} />
-        <input type="hidden" name="set_name" value={product.setName} />
-        <input type="hidden" name="image_url" value={product.imageUrl} />
-        <input type="hidden" name="market_price" value={product.unopenedPrice} />
-        <input type="hidden" name="collection_id" value={collectionId || ""} />
-        <select
-          name="quantity"
-          value={quantity}
-          onChange={(e) => setQuantity(Number(e.target.value))}
-          style={inputStyle}
-        >
-          {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
-            <option key={n} value={n}>
-              Qty: {n}
-            </option>
-          ))}
-        </select>
-        <input
-          name="purchase_price"
-          type="number"
-          step="0.01"
-          placeholder="Your purchase price"
-          value={purchasePrice}
-          onChange={(e) => setPurchasePrice(e.target.value)}
-          style={inputStyle}
-        />
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rmt-btn"
-          style={{
-            width: "100%",
-            backgroundColor: "#F2B705",
-            color: "#000000",
-            fontWeight: 600,
-            borderRadius: 6,
-            padding: "6px 12px",
-            fontSize: 14,
-            border: "none",
-            cursor: submitting ? "default" : "pointer",
-            opacity: submitting ? 0.7 : 1,
-          }}
-        >
-          {submitting ? "Adding..." : "Add to Collection"}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input type="hidden" name="product_id" value={product.id} />
+          <input type="hidden" name="tcgplayer_id" value={product.tcgPlayerId} />
+          <input type="hidden" name="name" value={product.name} />
+          <input type="hidden" name="set_name" value={product.setName} />
+          <input type="hidden" name="image_url" value={product.imageUrl} />
+          <input type="hidden" name="market_price" value={product.unopenedPrice} />
+          <input type="hidden" name="collection_id" value={collectionId || ""} />
+          <select
+            name="quantity"
+            value={quantity}
+            onChange={(e) => setQuantity(Number(e.target.value))}
+            style={inputStyle}
+          >
+            {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                Qty: {n}
+              </option>
+            ))}
+          </select>
+          <input
+            name="purchase_price"
+            type="number"
+            step="0.01"
+            placeholder="Your purchase price"
+            value={purchasePrice}
+            onChange={(e) => setPurchasePrice(e.target.value)}
+            style={inputStyle}
+          />
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rmt-btn"
+            style={{
+              width: "100%",
+              backgroundColor: "#F2B705",
+              color: "#000000",
+              fontWeight: 600,
+              borderRadius: 6,
+              padding: "6px 12px",
+              fontSize: 14,
+              border: "none",
+              cursor: submitting ? "default" : "pointer",
+              opacity: submitting ? 0.7 : 1,
+            }}
+          >
+            {submitting ? "Adding..." : "Add to Collection"}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
@@ -157,7 +173,7 @@ export default function AddSealedSearch({ onAdded, collectionId }) {
         style={{
           display: "grid",
           gap: 16,
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
         }}
       >
         {results.map((product) => (

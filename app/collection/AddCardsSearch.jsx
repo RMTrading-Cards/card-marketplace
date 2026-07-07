@@ -12,6 +12,18 @@ const cardBox = {
   border: "1px solid #2a2a2a",
   borderRadius: 8,
   padding: 12,
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+}
+const imageCol = {
+  flex: "1 1 40%",
+  maxWidth: 200,
+  minWidth: 110,
+}
+const infoCol = {
+  flex: "1 1 50%",
+  minWidth: 150,
 }
 const inputStyle = {
   width: "100%",
@@ -57,107 +69,111 @@ function CardResult({ card, variant, onAdded, collectionId }) {
 
   return (
     <div style={cardBox}>
-      {card.image_small && (
-        <img src={card.image_small} alt={card.name} style={{ width: "100%", borderRadius: 6, marginBottom: 8 }} />
-      )}
-      <p style={{ color: "#ffffff", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-        {card.name}
-        {card.card_number && card.set_total && (
-          <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
+      <div style={imageCol}>
+        {card.image_small && (
+          <img src={card.image_small} alt={card.name} style={{ width: "100%", borderRadius: 6 }} />
         )}
-      </p>
-      <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>
-        {card.set_name}
-        {card.release_year && ` · ${card.release_year}`}
-      </p>
-      <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-        {card.rarity && (
-          <span style={{ color: "#F2B705", fontSize: 12 }}>{card.rarity}</span>
-        )}
-        <span style={{ color: "#9ca3af", fontSize: 12 }}>· {variant.key}</span>
       </div>
-      <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8, display: "flex", justifyContent: "space-between", maxWidth: 220 }}>
-        <span>Market: {formatPrice(market)}</span>
-        {market != null && parsedPrice != null && (
-          <span style={{ color: market - parsedPrice >= 0 ? "#4ade80" : "#f87171" }}>
-            {market - parsedPrice >= 0 ? "+" : ""}
-            {(market - parsedPrice).toFixed(2)}
-          </span>
-        )}
-      </p>
-
-      {market != null && (
-        <div style={{ marginBottom: 12 }}>
-          {thresholds.map((pct) => {
-            const value = market * pct
-            const diff = parsedPrice != null ? value - parsedPrice : null
-            return (
-              <div key={pct} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#d1d5db", marginBottom: 2 }}>
-                <span>{Math.round(pct * 100)}% = {formatPrice(value)}</span>
-                {diff != null && (
-                  <span style={{ color: diff >= 0 ? "#4ade80" : "#f87171", marginLeft: 8 }}>
-                    {diff >= 0 ? "+" : ""}
-                    {diff.toFixed(2)}
-                  </span>
-                )}
-              </div>
-            )
-          })}
+      <div style={infoCol}>
+        <p style={{ color: "#ffffff", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+          {card.name}
+          {card.card_number && card.set_total && (
+            <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
+          )}
+        </p>
+        <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>
+          {card.set_name}
+          {card.release_year && ` · ${card.release_year}`}
+        </p>
+        <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+          {card.rarity && (
+            <span style={{ color: "#F2B705", fontSize: 12 }}>{card.rarity}</span>
+          )}
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>· {variant.key}</span>
         </div>
-      )}
+        <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8, display: "flex", justifyContent: "space-between", maxWidth: 220 }}>
+          <span>Market: {formatPrice(market)}</span>
+          {market != null && parsedPrice != null && (
+            <span style={{ color: market - parsedPrice >= 0 ? "#4ade80" : "#f87171" }}>
+              {market - parsedPrice >= 0 ? "+" : ""}
+              {(market - parsedPrice).toFixed(2)}
+            </span>
+          )}
+        </p>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <input type="hidden" name="card_id" value={card.id} />
-        <input type="hidden" name="variant" value={variant.key} />
-        <input type="hidden" name="collection_id" value={collectionId || ""} />
-        <select
-          name="quantity"
-          value={quantity}
-          onChange={(e) => setQuantity(Number(e.target.value))}
-          style={inputStyle}
-        >
-          {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
-            <option key={n} value={n}>
-              Qty: {n}
-            </option>
-          ))}
-        </select>
-        <select name="condition" defaultValue="NM" style={inputStyle}>
-          <option value="NM">Near Mint</option>
-          <option value="LP">Lightly Played</option>
-          <option value="MP">Moderately Played</option>
-          <option value="HP">Heavily Played</option>
-          <option value="DMG">Damaged</option>
-        </select>
-        <input
-          name="purchase_price"
-          type="number"
-          step="0.01"
-          placeholder="Your purchase price"
-          value={purchasePrice}
-          onChange={(e) => setPurchasePrice(e.target.value)}
-          style={inputStyle}
-        />
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rmt-btn"
-          style={{
-            width: "100%",
-            backgroundColor: "#F2B705",
-            color: "#000000",
-            fontWeight: 600,
-            borderRadius: 6,
-            padding: "6px 12px",
-            fontSize: 14,
-            border: "none",
-            cursor: submitting ? "default" : "pointer",
-            opacity: submitting ? 0.7 : 1,
-          }}
-        >
-          {submitting ? "Adding..." : "Add to Collection"}
-        </button>
-      </form>
+        {market != null && (
+          <div style={{ marginBottom: 12 }}>
+            {thresholds.map((pct) => {
+              const value = market * pct
+              const diff = parsedPrice != null ? value - parsedPrice : null
+              return (
+                <div key={pct} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#d1d5db", marginBottom: 2 }}>
+                  <span>{Math.round(pct * 100)}% = {formatPrice(value)}</span>
+                  {diff != null && (
+                    <span style={{ color: diff >= 0 ? "#4ade80" : "#f87171", marginLeft: 8 }}>
+                      {diff >= 0 ? "+" : ""}
+                      {diff.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input type="hidden" name="card_id" value={card.id} />
+          <input type="hidden" name="variant" value={variant.key} />
+          <input type="hidden" name="collection_id" value={collectionId || ""} />
+          <select
+            name="quantity"
+            value={quantity}
+            onChange={(e) => setQuantity(Number(e.target.value))}
+            style={inputStyle}
+          >
+            {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                Qty: {n}
+              </option>
+            ))}
+          </select>
+          <select name="condition" defaultValue="NM" style={inputStyle}>
+            <option value="NM">Near Mint</option>
+            <option value="LP">Lightly Played</option>
+            <option value="MP">Moderately Played</option>
+            <option value="HP">Heavily Played</option>
+            <option value="DMG">Damaged</option>
+          </select>
+          <input
+            name="purchase_price"
+            type="number"
+            step="0.01"
+            placeholder="Your purchase price"
+            value={purchasePrice}
+            onChange={(e) => setPurchasePrice(e.target.value)}
+            style={inputStyle}
+          />
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rmt-btn"
+            style={{
+              width: "100%",
+              backgroundColor: "#F2B705",
+              color: "#000000",
+              fontWeight: 600,
+              borderRadius: 6,
+              padding: "6px 12px",
+              fontSize: 14,
+              border: "none",
+              cursor: submitting ? "default" : "pointer",
+              opacity: submitting ? 0.7 : 1,
+            }}
+          >
+            {submitting ? "Adding..." : "Add to Collection"}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
@@ -250,7 +266,7 @@ export default function AddCardsSearch({ onAdded, collectionId }) {
         style={{
           display: "grid",
           gap: 16,
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
         }}
       >
         {expanded.map(({ card, variant }) => (

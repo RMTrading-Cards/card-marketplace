@@ -104,6 +104,18 @@ const rowBox = {
   padding: 12,
 }
 
+const rowImageBox = {
+  flex: "1 1 45%",
+  maxWidth: 220,
+  minWidth: 140,
+}
+
+const rowInfoBox = {
+  flex: "1 1 50%",
+  minWidth: 200,
+  color: "#ffffff",
+}
+
 const tabButtonBase = {
   padding: "8px 20px",
   borderRadius: 6,
@@ -296,10 +308,12 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
                 return (
                   <div key={`card-${row.id}`} style={rowBox}>
-                    {row.image && (
-                      <img src={row.image} alt={row.name} style={{ width: 56, borderRadius: 6 }} />
-                    )}
-                    <div style={{ flex: 1, minWidth: 0, color: "#ffffff" }}>
+                    <div style={rowImageBox}>
+                      {row.image && (
+                        <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />
+                      )}
+                    </div>
+                    <div style={rowInfoBox}>
                       <strong>
                         {card?.name}
                         {card?.card_number && card?.set_total && (
@@ -340,13 +354,14 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           <ManualPriceInput id={row.id} itemType="card" currentValue={null} />
                         </div>
                       )}
+
+                      <form action={removeCardFromCollection} style={{ marginTop: 10 }}>
+                        <input type="hidden" name="id" value={row.id} />
+                        <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
+                          Remove
+                        </button>
+                      </form>
                     </div>
-                    <form action={removeCardFromCollection}>
-                      <input type="hidden" name="id" value={row.id} />
-                      <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
-                        Remove
-                      </button>
-                    </form>
                   </div>
                 )
               }
@@ -359,13 +374,15 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
               return (
                 <div key={`sealed-${row.id}`} style={rowBox}>
-                  {row.image && (
-                    <img src={row.image} alt={row.name} style={{ width: 56, borderRadius: 6 }} />
-                  )}
-                  <div style={{ flex: 1, minWidth: 0, color: "#ffffff" }}>
+                  <div style={rowImageBox}>
+                    {row.image && (
+                      <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />
+                    )}
+                  </div>
+                  <div style={rowInfoBox}>
                     <strong>{row.name}</strong>{" "}
                     <span style={{ color: "#9ca3af" }}>({row.subLabel})</span>
-                    <div style={{ fontSize: 13 }}>
+                    <div style={{ fontSize: 13, marginTop: 2 }}>
                       Qty: {row.quantity} · Paid: {formatPrice(row.purchasePrice)} · Market: {formatPrice(row.market)}
                     </div>
                     {row.market == null && (
@@ -377,13 +394,13 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                         {diff.toFixed(2)}
                       </div>
                     )}
+                    <form action={removeSealedFromCollection} style={{ marginTop: 10 }}>
+                      <input type="hidden" name="id" value={row.id} />
+                      <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
+                        Remove
+                      </button>
+                    </form>
                   </div>
-                  <form action={removeSealedFromCollection}>
-                    <input type="hidden" name="id" value={row.id} />
-                    <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
-                      Remove
-                    </button>
-                  </form>
                 </div>
               )
             })}
