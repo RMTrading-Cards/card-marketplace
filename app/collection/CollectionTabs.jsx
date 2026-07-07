@@ -1,9 +1,16 @@
 ﻿"use client"
 import { useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import AddCardsSearch from "./AddCardsSearch"
 import AddSealedSearch from "./AddSealedSearch"
 import CollectionSelector from "./CollectionSelector"
-import { removeCardFromCollection, removeSealedFromCollection, setManualPrice } from "./actions"
+import {
+  removeCardFromCollection,
+  removeSealedFromCollection,
+  setManualPrice,
+  updateItemQuantity,
+  updateItemPurchasePrice,
+} from "./actions"
 
 function formatPrice(n) {
   return n == null ? "—" : `$${n.toFixed(2)}`
@@ -93,26 +100,120 @@ function ManualPriceInput({ id, itemType, currentValue }) {
   )
 }
 
-const rowBox = {
-  display: "flex",
-  gap: 16,
-  alignItems: "flex-start",
-  flexWrap: "wrap",
+function QuantityEditor({ id, itemType, quantity }) {
+  const router = useRouter()
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleChange(e) {
+    setSubmitting(true)
+    const formData = new FormData()
+    formData.set("id", id)
+    formData.set("item_type", itemType)
+    formData.set("quantity", e.target.value)
+    await updateItemQuantity(formData)
+    setSubmitting(false)
+    router.refresh()
+  }
+
+  return (
+    <select
+      defaultValue={quantity}
+      onChange={handleChange}
+      disabled={submitting}
+      style={{
+        backgroundColor: "#0d0d0d",
+        border: "1px solid #2a2a2a",
+        color: "#ffffff",
+        borderRadius: 6,
+        padding: "2px 6px",
+        fontSize: 14,
+      }}
+    >
+      {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
+        <option key={n} value={n}>Qty: {n}</option>
+      ))}
+    </select>
+  )
+}
+
+function EditablePaid({ id, itemType, purchasePrice }) {
+  const router = useRouter()
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(purchasePrice ?? "")
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setSubmitting(true)
+    const formData = new FormData()
+    formData.set("id", id)
+    formData.set("item_type", itemType)
+    formData.set("purchase_price", value)
+    await updateItemPurchasePrice(formData)
+    setSubmitting(false)
+    setEditing(false)
+    router.refresh()
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSubmit} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+        <input
+          type="number"
+          step="0.01"
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          style={{
+            width: 80,
+            backgroundColor: "#0d0d0d",
+            border: "1px solid #2a2a2a",
+            color: "#ffffff",
+            borderRadius: 6,
+            padding: "2px 6px",
+            fontSize: 14,
+          }}
+        />
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rmt-btn"
+          style={{ backgroundColor: "#F2B705", color: "#000", border: "none", borderRadius: 6, padding: "2px 8px", fontSize: 13, cursor: "pointer" }}
+        >
+          Save
+        </button>
+      </form>
+    )
+  }
+
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      style={{ textDecoration: "underline dotted", cursor: "pointer" }}
+      title="Click to edit"
+    >
+      Paid: {formatPrice(purchasePrice)}
+    </span>
+  )
+}
+
+const cardBox = {
   backgroundColor: "#141414",
   border: "1px solid #2a2a2a",
   borderRadius: 8,
   padding: 12,
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
 }
-
-const rowImageBox = {
-  flex: "1 1 45%",
-  maxWidth: 220,
-  minWidth: 140,
+const imageCol = {
+  flex: "1 1 40%",
+  maxWidth: 200,
+  minWidth: 110,
 }
-
-const rowInfoBox = {
+const infoCol = {
   flex: "1 1 50%",
-  minWidth: 200,
+  minWidth: 150,
   color: "#ffffff",
 }
 
@@ -295,7 +396,13 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             {selectedCollection?.name || "Collection"} ({filtered.length})
           </h2>
 
-          <div style={{ display: "grid", gap: 12 }}>
+          <div
+            style={{
+              display: "grid",
+              gap: 16,
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            }}
+          >
             {filtered.length === 0 && (
               <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No items found.</p>
             )}
@@ -307,13 +414,13 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                 const purchasePrice = row.purchasePrice
 
                 return (
-                  <div key={`card-${row.id}`} style={rowBox}>
-                    <div style={rowImageBox}>
+                  <div key={`card-${row.id}`} style={cardBox}>
+                    <div style={imageCol}>
                       {row.image && (
                         <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />
                       )}
                     </div>
-                    <div style={rowInfoBox}>
+                    <div style={infoCol}>
                       <strong>
                         {card?.name}
                         {card?.card_number && card?.set_total && (
@@ -328,8 +435,10 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           {card.rarity} · {row.variant || "Standard"}
                         </div>
                       )}
-                      <div style={{ fontSize: 13, marginTop: 2, marginBottom: 4 }}>
-                        Qty: {row.quantity} · Condition: {row.condition} · Paid: {formatPrice(purchasePrice)}
+                      <div style={{ fontSize: 13, marginTop: 6, marginBottom: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <QuantityEditor id={row.id} itemType="card" quantity={row.quantity} />
+                        <span>· Condition: {row.condition} ·</span>
+                        <EditablePaid id={row.id} itemType="card" purchasePrice={purchasePrice} />
                       </div>
 
                       {market != null ? (
@@ -373,17 +482,20 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                   : null
 
               return (
-                <div key={`sealed-${row.id}`} style={rowBox}>
-                  <div style={rowImageBox}>
+                <div key={`sealed-${row.id}`} style={cardBox}>
+                  <div style={imageCol}>
                     {row.image && (
                       <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />
                     )}
                   </div>
-                  <div style={rowInfoBox}>
+                  <div style={infoCol}>
                     <strong>{row.name}</strong>{" "}
                     <span style={{ color: "#9ca3af" }}>({row.subLabel})</span>
-                    <div style={{ fontSize: 13, marginTop: 2 }}>
-                      Qty: {row.quantity} · Paid: {formatPrice(row.purchasePrice)} · Market: {formatPrice(row.market)}
+                    <div style={{ fontSize: 13, marginTop: 6, marginBottom: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <QuantityEditor id={row.id} itemType="sealed" quantity={row.quantity} />
+                      <span>·</span>
+                      <EditablePaid id={row.id} itemType="sealed" purchasePrice={row.purchasePrice} />
+                      <span>· Market: {formatPrice(row.market)}</span>
                     </div>
                     {row.market == null && (
                       <ManualPriceInput id={row.id} itemType="sealed" currentValue={row.manualPrice} />

@@ -370,3 +370,29 @@ export async function setManualPrice(formData) {
   if (error) throw new Error(error.message)
   revalidatePath("/collection")
 }
+
+export async function updateItemQuantity(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const itemType = formData.get("item_type")
+  const quantity = Number(formData.get("quantity")) || 1
+  const table = itemType === "sealed" ? "user_sealed_items" : "user_cards"
+
+  const { error } = await supabase.from(table).update({ quantity }).eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function updateItemPurchasePrice(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const itemType = formData.get("item_type")
+  const purchasePrice = formData.get("purchase_price")
+    ? Number(formData.get("purchase_price"))
+    : null
+  const table = itemType === "sealed" ? "user_sealed_items" : "user_cards"
+
+  const { error } = await supabase.from(table).update({ purchase_price: purchasePrice }).eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
