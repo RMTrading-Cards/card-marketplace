@@ -54,7 +54,7 @@ function ManualPriceInput({ id, itemType, currentValue }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 6, marginTop: 4 }}>
+    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap", maxWidth: "100%" }}>
       <input
         type="number"
         step="0.01"
@@ -68,7 +68,9 @@ function ManualPriceInput({ id, itemType, currentValue }) {
           borderRadius: 6,
           padding: "4px 8px",
           fontSize: 16,
-          width: 160,
+          width: "100%",
+          maxWidth: 200,
+          boxSizing: "border-box",
         }}
       />
       <button
@@ -95,6 +97,7 @@ const rowBox = {
   display: "flex",
   gap: 16,
   alignItems: "flex-start",
+  flexWrap: "wrap",
   backgroundColor: "#141414",
   border: "1px solid #2a2a2a",
   borderRadius: 8,
@@ -296,7 +299,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     {row.image && (
                       <img src={row.image} alt={row.name} style={{ width: 56, borderRadius: 6 }} />
                     )}
-                    <div style={{ flex: 1, color: "#ffffff" }}>
+                    <div style={{ flex: 1, minWidth: 0, color: "#ffffff" }}>
                       <strong>
                         {card?.name}
                         {card?.card_number && card?.set_total && (
@@ -359,7 +362,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                   {row.image && (
                     <img src={row.image} alt={row.name} style={{ width: 56, borderRadius: 6 }} />
                   )}
-                  <div style={{ flex: 1, color: "#ffffff" }}>
+                  <div style={{ flex: 1, minWidth: 0, color: "#ffffff" }}>
                     <strong>{row.name}</strong>{" "}
                     <span style={{ color: "#9ca3af" }}>({row.subLabel})</span>
                     <div style={{ fontSize: 13 }}>
