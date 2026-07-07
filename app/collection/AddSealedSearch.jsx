@@ -61,12 +61,12 @@ function SealedResult({ product, onAdded, collectionId }) {
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input type="hidden" name="product_id" value={product.id} />
-        <input type="hidden" name="collection_id" value={collectionId || ""} />
         <input type="hidden" name="tcgplayer_id" value={product.tcgPlayerId} />
         <input type="hidden" name="name" value={product.name} />
         <input type="hidden" name="set_name" value={product.setName} />
         <input type="hidden" name="image_url" value={product.imageUrl} />
         <input type="hidden" name="market_price" value={product.unopenedPrice} />
+        <input type="hidden" name="collection_id" value={collectionId || ""} />
         <select
           name="quantity"
           value={quantity}
@@ -117,15 +117,13 @@ export default function AddSealedSearch({ onAdded, collectionId }) {
   const [results, setResults] = useState([])
   const [isPending, startTransition] = useTransition()
 
-  function runSearch() {
+  function handleChange(e) {
+    const value = e.target.value
+    setQuery(value)
     startTransition(async () => {
-      const data = await searchSealedProducts(query)
+      const data = await searchSealedProducts(value)
       setResults(data || [])
     })
-  }
-
-  function handleKeyDown(e) {
-    if (e.key === "Enter") runSearch()
   }
 
   function handleAdded() {
@@ -136,40 +134,24 @@ export default function AddSealedSearch({ onAdded, collectionId }) {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, maxWidth: 576, marginBottom: 16 }}>
-        <input
-          type="text"
-          placeholder="Search booster boxes, ETBs, etc. — press Enter"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          style={{
-            flex: 1,
-            backgroundColor: "#141414",
-            border: "1px solid #2a2a2a",
-            color: "#ffffff",
-            borderRadius: 8,
-            padding: "12px 16px",
-            fontSize: 16,
-            boxSizing: "border-box",
-          }}
-        />
-        <button
-          onClick={runSearch}
-          className="rmt-btn"
-          style={{
-            backgroundColor: "#F2B705",
-            color: "#000000",
-            fontWeight: 600,
-            borderRadius: 8,
-            padding: "0 20px",
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          Search
-        </button>
-      </div>
+      <input
+        type="text"
+        placeholder="Search booster boxes, ETBs, etc..."
+        value={query}
+        onChange={handleChange}
+        style={{
+          width: "100%",
+          maxWidth: 576,
+          backgroundColor: "#141414",
+          border: "1px solid #2a2a2a",
+          color: "#ffffff",
+          borderRadius: 8,
+          padding: "12px 16px",
+          fontSize: 16,
+          marginBottom: 16,
+          boxSizing: "border-box",
+        }}
+      />
       {isPending && <p style={{ color: "#ffffff", marginBottom: 16 }}>Searching...</p>}
       <div
         style={{

@@ -35,22 +35,28 @@ export async function searchCards(query) {
 
 export async function searchSealedProducts(query) {
   if (!query || query.trim().length < 2) return []
-  try {
-    const res = await fetch(
-      `https://www.pokemonpricetracker.com/api/v2/sealed-products?search=${encodeURIComponent(query)}&limit=10`,
-      { headers: { Authorization: `Bearer ${process.env.POKEMONPRICETRACKER_API_KEY}` } }
-    )
-    if (!res.ok) {
-      const body = await res.text()
-      console.error("Sealed search failed", res.status, body)
-      return []
-    }
-    const json = await res.json()
-    return json.data || []
-  } catch (err) {
-    console.error(err)
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("sealed_products")
+    .select("*")
+    .or(`name.ilike.%${query}%,set_name.ilike.%${query}%`)
+    .order("name")
+    .limit(20)
+
+  if (error) {
+    console.error(error)
     return []
   }
+
+  return (data || []).map((p) => ({
+    id: p.id,
+    tcgPlayerId: p.tcgplayer_id,
+    name: p.name,
+    setName: p.set_name,
+    imageUrl: p.image_url,
+    unopenedPrice: p.market_price,
+  }))
 }
 
 export async function addCardToCollection(formData) {
