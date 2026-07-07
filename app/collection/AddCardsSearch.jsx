@@ -24,8 +24,20 @@ const inputStyle = {
   boxSizing: "border-box",
 }
 
-function CardResult({ card, onAdded, collectionId }) {
-  const market = card.tcgplayer_market_price
+function getVariants(card) {
+  const variants = []
+  if (card.price_normal != null) variants.push({ key: "Normal", price: card.price_normal })
+  if (card.price_holofoil != null) variants.push({ key: "Holofoil", price: card.price_holofoil })
+  if (card.price_reverse_holofoil != null) variants.push({ key: "Reverse Holofoil", price: card.price_reverse_holofoil })
+  if (card.price_1st_edition_holofoil != null) variants.push({ key: "1st Edition Holofoil", price: card.price_1st_edition_holofoil })
+  if (variants.length === 0) {
+    variants.push({ key: "Standard", price: card.tcgplayer_market_price })
+  }
+  return variants
+}
+
+function CardResult({ card, variant, onAdded }) {
+  const market = variant.price
   const [quantity, setQuantity] = useState(1)
   const [purchasePrice, setPurchasePrice] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -58,9 +70,12 @@ function CardResult({ card, onAdded, collectionId }) {
         {card.set_name}
         {card.release_year && ` · ${card.release_year}`}
       </p>
-      {card.rarity && (
-        <p style={{ color: "#F2B705", fontSize: 12, marginBottom: 8 }}>{card.rarity}</p>
-      )}
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+        {card.rarity && (
+          <span style={{ color: "#F2B705", fontSize: 12 }}>{card.rarity}</span>
+        )}
+        <span style={{ color: "#9ca3af", fontSize: 12 }}>· {variant.key}</span>
+      </div>
       <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8, display: "flex", justifyContent: "space-between", maxWidth: 220 }}>
         <span>Market: {formatPrice(market)}</span>
         {market != null && parsedPrice != null && (
@@ -93,7 +108,7 @@ function CardResult({ card, onAdded, collectionId }) {
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input type="hidden" name="card_id" value={card.id} />
-        <input type="hidden" name="collection_id" value={collectionId || ""} />
+        <input type="hidden" name="variant" value={variant.key} />
         <select
           name="quantity"
           value={quantity}
@@ -146,7 +161,7 @@ function CardResult({ card, onAdded, collectionId }) {
   )
 }
 
-export default function AddCardsSearch({ onAdded, collectionId }) {
+export default function AddCardsSearch({ onAdded }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])
   const [isPending, startTransition] = useTransition()
@@ -175,16 +190,21 @@ export default function AddCardsSearch({ onAdded, collectionId }) {
     onAdded()
   }
 
-  const sortedResults = useMemo(() => {
-    const list = [...results]
-    if (sortBy === "name") {
-      list.sort((a, b) => a.name.localeCompare(b.name))
-    } else if (sortBy === "price_desc") {
-      list.sort((a, b) => (b.tcgplayer_market_price ?? -1) - (a.tcgplayer_market_price ?? -1))
-    } else if (sortBy === "price_asc") {
-      list.sort((a, b) => (a.tcgplayer_market_price ?? Infinity) - (b.tcgplayer_market_price ?? Infinity))
+  const expanded = useMemo(() => {
+    const rows = []
+    for (const card of results) {
+      for (const variant of getVariants(card)) {
+        rows.push({ card, variant })
+      }
     }
-    return list
+    if (sortBy === "name") {
+      rows.sort((a, b) => a.card.name.localeCompare(b.card.name))
+    } else if (sortBy === "price_desc") {
+      rows.sort((a, b) => (b.variant.price ?? -1) - (a.variant.price ?? -1))
+    } else if (sortBy === "price_asc") {
+      rows.sort((a, b) => (a.variant.price ?? Infinity) - (b.variant.price ?? Infinity))
+    }
+    return rows
   }, [results, sortBy])
 
   return (
@@ -232,8 +252,8 @@ export default function AddCardsSearch({ onAdded, collectionId }) {
           gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
         }}
       >
-        {sortedResults.map((card) => (
-          <CardResult key={card.id} card={card} onAdded={handleAdded} collectionId={collectionId} />
+        {expanded.map(({ card, variant }) => (
+          <CardResult key={`${card.id}-${variant.key}`} card={card} variant={variant} onAdded={handleAdded} />
         ))}
       </div>
     </div>

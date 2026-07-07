@@ -9,6 +9,17 @@ function formatPrice(n) {
   return n == null ? "—" : `$${n.toFixed(2)}`
 }
 
+function getVariantPrice(card, variant) {
+  if (!card) return null
+  switch (variant) {
+    case "Normal": return card.price_normal
+    case "Holofoil": return card.price_holofoil
+    case "Reverse Holofoil": return card.price_reverse_holofoil
+    case "1st Edition Holofoil": return card.price_1st_edition_holofoil
+    default: return card.tcgplayer_market_price
+  }
+}
+
 function ThresholdRow({ label, value, purchasePrice }) {
   if (value == null) return null
   const diff = purchasePrice != null ? value - purchasePrice : null
@@ -126,6 +137,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   const [typeFilter, setTypeFilter] = useState("all")
   const [sortBy, setSortBy] = useState("name")
 
+  const selectedCollection = collections.find((c) => c.id === selectedCollectionId)
+
   const combined = useMemo(() => {
     const cardRows = (myCards || []).map((item) => ({
       kind: "card",
@@ -133,11 +146,12 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       name: item.cards?.name || "",
       subLabel: item.cards?.set_name,
       image: item.cards?.image_small,
-      market: item.cards?.tcgplayer_market_price,
+      market: getVariantPrice(item.cards, item.variant),
       manualPrice: item.manual_price,
       quantity: item.quantity,
       purchasePrice: item.purchase_price,
       condition: item.condition,
+      variant: item.variant,
       collectionId: item.collection_id,
       cardMeta: item.cards,
     }))
@@ -189,9 +203,6 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
     })
     return list
   }, [inSelectedCollection, query, typeFilter, sortBy])
-
-  const filteredCards = filtered.filter((r) => r.kind === "card")
-  const filteredSealed = filtered.filter((r) => r.kind === "sealed")
 
   return (
     <div>
@@ -265,123 +276,115 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             </select>
           </div>
 
-          {typeFilter !== "sealed" && (
-            <>
-              <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-                Your Cards ({filteredCards.length})
-              </h2>
-              <div style={{ display: "grid", gap: 12, marginBottom: 40 }}>
-                {filteredCards.length === 0 && (
-                  <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No cards found.</p>
-                )}
-                {filteredCards.map((row) => {
-                  const card = row.cardMeta
-                  const market = row.market
-                  const purchasePrice = row.purchasePrice
+          <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
+            {selectedCollection?.name || "Collection"} ({filtered.length})
+          </h2>
 
-                  return (
-                    <div key={row.id} style={rowBox}>
-                      {row.image && (
-                        <img src={row.image} alt={row.name} style={{ width: 56, borderRadius: 6 }} />
-                      )}
-                      <div style={{ flex: 1, color: "#ffffff" }}>
-                        <strong>
-                          {card?.name}
-                          {card?.card_number && card?.set_total && (
-                            <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
-                          )}
-                        </strong>{" "}
-                        <span style={{ color: "#9ca3af" }}>
-                          ({card?.set_name}{card?.release_year && ` · ${card.release_year}`})
-                        </span>
-                        <div style={{ fontSize: 13, marginBottom: 4 }}>
-                          Qty: {row.quantity} · Condition: {row.condition} · Paid: {formatPrice(purchasePrice)}
+          <div style={{ display: "grid", gap: 12 }}>
+            {filtered.length === 0 && (
+              <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No items found.</p>
+            )}
+
+            {filtered.map((row) => {
+              if (row.kind === "card") {
+                const card = row.cardMeta
+                const market = row.market
+                const purchasePrice = row.purchasePrice
+
+                return (
+                  <div key={`card-${row.id}`} style={rowBox}>
+                    {row.image && (
+                      <img src={row.image} alt={row.name} style={{ width: 56, borderRadius: 6 }} />
+                    )}
+                    <div style={{ flex: 1, color: "#ffffff" }}>
+                      <strong>
+                        {card?.name}
+                        {card?.card_number && card?.set_total && (
+                          <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
+                        )}
+                      </strong>{" "}
+                      <span style={{ color: "#9ca3af" }}>
+                        ({card?.set_name}{card?.release_year && ` · ${card.release_year}`})
+                      </span>
+                      {card?.rarity && (
+                        <div style={{ color: "#F2B705", fontSize: 12, marginTop: 2 }}>
+                          {card.rarity} · {row.variant || "Standard"}
                         </div>
-
-                        {market != null ? (
-                          <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2 }}>
-                            <ThresholdRow label="85%" value={market * 0.85} purchasePrice={purchasePrice} />
-                            <ThresholdRow label="90%" value={market * 0.9} purchasePrice={purchasePrice} />
-                            <ThresholdRow label="95%" value={market * 0.95} purchasePrice={purchasePrice} />
-                            <ThresholdRow label="Market" value={market} purchasePrice={purchasePrice} />
-                          </div>
-                        ) : row.manualPrice != null ? (
-                          <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2 }}>
-                            <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>Manually set value:</div>
-                            <ThresholdRow label="85%" value={row.manualPrice * 0.85} purchasePrice={purchasePrice} />
-                            <ThresholdRow label="90%" value={row.manualPrice * 0.9} purchasePrice={purchasePrice} />
-                            <ThresholdRow label="95%" value={row.manualPrice * 0.95} purchasePrice={purchasePrice} />
-                            <ThresholdRow label="Market (manual)" value={row.manualPrice} purchasePrice={purchasePrice} />
-                            <ManualPriceInput id={row.id} itemType="card" currentValue={row.manualPrice} />
-                          </div>
-                        ) : (
-                          <div>
-                            <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 4 }}>Market: N/A</div>
-                            <ManualPriceInput id={row.id} itemType="card" currentValue={null} />
-                          </div>
-                        )}
-                      </div>
-                      <form action={removeCardFromCollection}>
-                        <input type="hidden" name="id" value={row.id} />
-                        <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
-                          Remove
-                        </button>
-                      </form>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
-
-          {typeFilter !== "card" && (
-            <>
-              <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-                Your Sealed Products ({filteredSealed.length})
-              </h2>
-              <div style={{ display: "grid", gap: 12 }}>
-                {filteredSealed.length === 0 && (
-                  <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No sealed products found.</p>
-                )}
-                {filteredSealed.map((row) => {
-                  const effectiveMarket = row.market ?? row.manualPrice
-                  const diff =
-                    effectiveMarket != null && row.purchasePrice != null
-                      ? effectiveMarket - row.purchasePrice
-                      : null
-                  return (
-                    <div key={row.id} style={rowBox}>
-                      {row.image && (
-                        <img src={row.image} alt={row.name} style={{ width: 56, borderRadius: 6 }} />
                       )}
-                      <div style={{ flex: 1, color: "#ffffff" }}>
-                        <strong>{row.name}</strong>{" "}
-                        <span style={{ color: "#9ca3af" }}>({row.subLabel})</span>
-                        <div style={{ fontSize: 13 }}>
-                          Qty: {row.quantity} · Paid: {formatPrice(row.purchasePrice)} · Market: {formatPrice(row.market)}
-                        </div>
-                        {row.market == null && (
-                          <ManualPriceInput id={row.id} itemType="sealed" currentValue={row.manualPrice} />
-                        )}
-                        {diff != null && (
-                          <div style={{ color: diff >= 0 ? "#4ade80" : "#f87171" }}>
-                            {diff >= 0 ? "+" : ""}
-                            {diff.toFixed(2)}
-                          </div>
-                        )}
+                      <div style={{ fontSize: 13, marginTop: 2, marginBottom: 4 }}>
+                        Qty: {row.quantity} · Condition: {row.condition} · Paid: {formatPrice(purchasePrice)}
                       </div>
-                      <form action={removeSealedFromCollection}>
-                        <input type="hidden" name="id" value={row.id} />
-                        <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
-                          Remove
-                        </button>
-                      </form>
+
+                      {market != null ? (
+                        <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2 }}>
+                          <ThresholdRow label="85%" value={market * 0.85} purchasePrice={purchasePrice} />
+                          <ThresholdRow label="90%" value={market * 0.9} purchasePrice={purchasePrice} />
+                          <ThresholdRow label="95%" value={market * 0.95} purchasePrice={purchasePrice} />
+                          <ThresholdRow label="Market" value={market} purchasePrice={purchasePrice} />
+                        </div>
+                      ) : row.manualPrice != null ? (
+                        <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2 }}>
+                          <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>Manually set value:</div>
+                          <ThresholdRow label="85%" value={row.manualPrice * 0.85} purchasePrice={purchasePrice} />
+                          <ThresholdRow label="90%" value={row.manualPrice * 0.9} purchasePrice={purchasePrice} />
+                          <ThresholdRow label="95%" value={row.manualPrice * 0.95} purchasePrice={purchasePrice} />
+                          <ThresholdRow label="Market (manual)" value={row.manualPrice} purchasePrice={purchasePrice} />
+                          <ManualPriceInput id={row.id} itemType="card" currentValue={row.manualPrice} />
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 4 }}>Market: N/A</div>
+                          <ManualPriceInput id={row.id} itemType="card" currentValue={null} />
+                        </div>
+                      )}
                     </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
+                    <form action={removeCardFromCollection}>
+                      <input type="hidden" name="id" value={row.id} />
+                      <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
+                        Remove
+                      </button>
+                    </form>
+                  </div>
+                )
+              }
+
+              const effectiveMarket = row.market ?? row.manualPrice
+              const diff =
+                effectiveMarket != null && row.purchasePrice != null
+                  ? effectiveMarket - row.purchasePrice
+                  : null
+
+              return (
+                <div key={`sealed-${row.id}`} style={rowBox}>
+                  {row.image && (
+                    <img src={row.image} alt={row.name} style={{ width: 56, borderRadius: 6 }} />
+                  )}
+                  <div style={{ flex: 1, color: "#ffffff" }}>
+                    <strong>{row.name}</strong>{" "}
+                    <span style={{ color: "#9ca3af" }}>({row.subLabel})</span>
+                    <div style={{ fontSize: 13 }}>
+                      Qty: {row.quantity} · Paid: {formatPrice(row.purchasePrice)} · Market: {formatPrice(row.market)}
+                    </div>
+                    {row.market == null && (
+                      <ManualPriceInput id={row.id} itemType="sealed" currentValue={row.manualPrice} />
+                    )}
+                    {diff != null && (
+                      <div style={{ color: diff >= 0 ? "#4ade80" : "#f87171" }}>
+                        {diff >= 0 ? "+" : ""}
+                        {diff.toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+                  <form action={removeSealedFromCollection}>
+                    <input type="hidden" name="id" value={row.id} />
+                    <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
+                      Remove
+                    </button>
+                  </form>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

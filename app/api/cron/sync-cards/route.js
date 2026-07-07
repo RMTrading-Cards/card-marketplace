@@ -45,6 +45,12 @@ function toRow(card) {
     set_name: card.set?.name,
     set_id: card.set?.id,
     card_number: card.number,
+    price_normal: card.tcgplayer?.prices?.normal?.market ?? null,
+    price_holofoil: card.tcgplayer?.prices?.holofoil?.market ?? null,
+    price_reverse_holofoil: card.tcgplayer?.prices?.reverseHolofoil?.market ?? null,
+    price_1st_edition_holofoil:
+      card.tcgplayer?.prices?.["1stEditionHolofoil"]?.market ??
+      card.tcgplayer?.prices?.["1stEdition"]?.market ?? null,
     set_total: card.set?.printedTotal,
     release_year: card.set?.releaseDate?.slice(0, 4),
     rarity: card.rarity,

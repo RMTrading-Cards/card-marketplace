@@ -10,7 +10,7 @@ export async function searchCards(query) {
 
   let q = supabase
     .from("cards")
-    .select("id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price")
+    .select("id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil")
 
   for (const token of tokens) {
     if (token.includes("/")) {
@@ -66,6 +66,7 @@ export async function addCardToCollection(formData) {
 
   const cardId = formData.get("card_id")
   const condition = formData.get("condition") || "NM"
+  const variant = formData.get("variant") || "Standard"
   const quantity = Number(formData.get("quantity")) || 1
   const purchasePrice = formData.get("purchase_price")
     ? Number(formData.get("purchase_price"))
@@ -78,6 +79,7 @@ export async function addCardToCollection(formData) {
     .eq("user_id", user.id)
     .eq("card_id", cardId)
     .eq("condition", condition)
+    .eq("variant", variant)
 
   existingQuery =
     purchasePrice == null
@@ -105,6 +107,7 @@ export async function addCardToCollection(formData) {
       purchase_price: purchasePrice,
       condition,
       collection_id: collectionId,
+      variant,
     })
     if (error) throw new Error(error.message)
   }
