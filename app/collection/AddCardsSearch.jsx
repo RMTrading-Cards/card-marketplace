@@ -36,7 +36,7 @@ function getVariants(card) {
   return variants
 }
 
-function CardResult({ card, variant, onAdded }) {
+function CardResult({ card, variant, onAdded, collectionId }) {
   const market = variant.price
   const [quantity, setQuantity] = useState(1)
   const [purchasePrice, setPurchasePrice] = useState("")
@@ -109,6 +109,7 @@ function CardResult({ card, variant, onAdded }) {
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input type="hidden" name="card_id" value={card.id} />
         <input type="hidden" name="variant" value={variant.key} />
+        <input type="hidden" name="collection_id" value={collectionId || ""} />
         <select
           name="quantity"
           value={quantity}
@@ -161,7 +162,7 @@ function CardResult({ card, variant, onAdded }) {
   )
 }
 
-export default function AddCardsSearch({ onAdded }) {
+export default function AddCardsSearch({ onAdded, collectionId }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])
   const [isPending, startTransition] = useTransition()
@@ -253,7 +254,7 @@ export default function AddCardsSearch({ onAdded }) {
         }}
       >
         {expanded.map(({ card, variant }) => (
-          <CardResult key={`${card.id}-${variant.key}`} card={card} variant={variant} onAdded={handleAdded} />
+          <CardResult key={`${card.id}-${variant.key}`} card={card} variant={variant} onAdded={handleAdded} collectionId={collectionId} />
         ))}
       </div>
     </div>
