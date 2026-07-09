@@ -3,7 +3,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createCollection, renameCollection, deleteCollection, setMainCollection } from "./actions"
 
-export default function CollectionSelector({ collections, selectedId, onSelect }) {
+export default function CollectionSelector({ collections, selectedId, onSelect, sellingMode, onToggleSelling }) {
   const [managing, setManaging] = useState(false)
   const [creating, setCreating] = useState(false)
   const [renamingId, setRenamingId] = useState(null)
@@ -81,6 +81,22 @@ export default function CollectionSelector({ collections, selectedId, onSelect }
           }}
         >
           Manage Collections
+        </button>
+
+        <button
+          onClick={onToggleSelling}
+          className={`rmt-tab${sellingMode ? " rmt-tab-active" : ""}`}
+          style={{
+            backgroundColor: "#141414",
+            border: "1px solid #2a2a2a",
+            color: "#ffffff",
+            borderRadius: 8,
+            padding: "10px 14px",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Selling
         </button>
       </div>
 

@@ -10,10 +10,19 @@ import {
   setManualPrice,
   updateItemQuantity,
   updateItemPurchasePrice,
+  sellCardItem,
+  sellSealedItem,
+  clearSoldHistory,
 } from "./actions"
 
 function formatPrice(n) {
   return n == null ? "—" : `$${n.toFixed(2)}`
+}
+
+function daysHeld(createdAt) {
+  if (!createdAt) return null
+  const diffMs = Date.now() - new Date(createdAt).getTime()
+  return Math.max(0, Math.floor(diffMs / 86400000))
 }
 
 function getVariantPrice(card, variant) {
@@ -198,6 +207,64 @@ function EditablePaid({ id, itemType, purchasePrice }) {
   )
 }
 
+function SellForm({ id, itemType }) {
+  const router = useRouter()
+  const [value, setValue] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setSubmitting(true)
+    const formData = new FormData()
+    formData.set("id", id)
+    formData.set("sold_price", value)
+    if (itemType === "sealed") await sellSealedItem(formData)
+    else await sellCardItem(formData)
+    setSubmitting(false)
+    router.refresh()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+      <input
+        type="number"
+        step="0.01"
+        placeholder="Sold for $"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        required
+        style={{
+          backgroundColor: "#0d0d0d",
+          border: "1px solid #2a2a2a",
+          color: "#ffffff",
+          borderRadius: 6,
+          padding: "6px 8px",
+          fontSize: 16,
+          width: 130,
+          boxSizing: "border-box",
+        }}
+      />
+      <button
+        type="submit"
+        disabled={submitting}
+        className="rmt-btn"
+        style={{
+          backgroundColor: "#F2B705",
+          color: "#000000",
+          fontWeight: 600,
+          borderRadius: 6,
+          padding: "6px 12px",
+          fontSize: 14,
+          border: "none",
+          cursor: submitting ? "default" : "pointer",
+        }}
+      >
+        {submitting ? "Saving..." : "Mark Sold"}
+      </button>
+    </form>
+  )
+}
+
 const cardBox = {
   backgroundColor: "#141414",
   border: "1px solid #2a2a2a",
@@ -248,7 +315,9 @@ const statBox = {
 }
 
 export default function CollectionTabs({ myCards, mySealed, collections, mainCollectionId }) {
+  const router = useRouter()
   const [tab, setTab] = useState("collection")
+  const [sellingMode, setSellingMode] = useState(false)
   const [selectedCollectionId, setSelectedCollectionId] = useState(mainCollectionId)
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
@@ -270,6 +339,9 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       condition: item.condition,
       variant: item.variant,
       collectionId: item.collection_id,
+      createdAt: item.created_at,
+      soldPrice: item.sold_price,
+      soldAt: item.sold_at,
       cardMeta: item.cards,
     }))
     const sealedRows = (mySealed || []).map((item) => ({
@@ -283,28 +355,46 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       quantity: item.quantity,
       purchasePrice: item.purchase_price,
       collectionId: item.collection_id,
+      createdAt: item.created_at,
+      soldPrice: item.sold_price,
+      soldAt: item.sold_at,
     }))
     return [...cardRows, ...sealedRows]
   }, [myCards, mySealed])
 
-  const inSelectedCollection = useMemo(
-    () => combined.filter((row) => row.collectionId === selectedCollectionId),
+  const activeInCollection = useMemo(
+    () => combined.filter((row) => row.collectionId === selectedCollectionId && row.soldAt == null),
+    [combined, selectedCollectionId]
+  )
+
+  const soldInCollection = useMemo(
+    () => combined.filter((row) => row.collectionId === selectedCollectionId && row.soldAt != null),
     [combined, selectedCollectionId]
   )
 
   const totals = useMemo(() => {
     let paid = 0
     let market = 0
-    for (const row of inSelectedCollection) {
+    for (const row of activeInCollection) {
       const effectiveMarket = row.market ?? row.manualPrice
       if (row.purchasePrice != null) paid += row.purchasePrice * row.quantity
       if (effectiveMarket != null) market += effectiveMarket * row.quantity
     }
     return { paid, market, profit: market - paid }
-  }, [inSelectedCollection])
+  }, [activeInCollection])
+
+  const actualProfit = useMemo(() => {
+    let total = 0
+    for (const row of soldInCollection) {
+      if (row.soldPrice != null && row.purchasePrice != null) {
+        total += (row.soldPrice - row.purchasePrice) * row.quantity
+      }
+    }
+    return total
+  }, [soldInCollection])
 
   const filtered = useMemo(() => {
-    let list = inSelectedCollection.filter((row) =>
+    let list = activeInCollection.filter((row) =>
       row.name.toLowerCase().includes(query.toLowerCase())
     )
     if (typeFilter !== "all") {
@@ -319,7 +409,15 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       return 0
     })
     return list
-  }, [inSelectedCollection, query, typeFilter, sortBy])
+  }, [activeInCollection, query, typeFilter, sortBy])
+
+  async function handleClearSold() {
+    if (!confirm("Clear sold history and reset actual profit for this collection? This can't be undone.")) return
+    const formData = new FormData()
+    formData.set("collection_id", selectedCollectionId)
+    await clearSoldHistory(formData)
+    router.refresh()
+  }
 
   return (
     <div>
@@ -354,6 +452,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             collections={collections}
             selectedId={selectedCollectionId}
             onSelect={setSelectedCollectionId}
+            sellingMode={sellingMode}
+            onToggleSelling={() => setSellingMode(!sellingMode)}
           />
 
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
@@ -366,11 +466,28 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               <div style={{ color: "#F2B705", fontSize: 20, fontWeight: 700 }}>{formatPrice(totals.market)}</div>
             </div>
             <div style={statBox}>
-              <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>Profit / Loss</div>
+              <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>Unrealized Profit / Loss</div>
               <div style={{ color: totals.profit >= 0 ? "#4ade80" : "#f87171", fontSize: 20, fontWeight: 700 }}>
                 {totals.profit >= 0 ? "+" : ""}{formatPrice(totals.profit)}
               </div>
             </div>
+            {sellingMode && (
+              <div style={statBox}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ color: "#9ca3af", fontSize: 12 }}>Actual Profit / Loss</span>
+                  <button
+                    onClick={handleClearSold}
+                    className="rmt-tab"
+                    style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#9ca3af", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer" }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div style={{ color: actualProfit >= 0 ? "#4ade80" : "#f87171", fontSize: 20, fontWeight: 700 }}>
+                  {actualProfit >= 0 ? "+" : ""}{formatPrice(actualProfit)}
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
@@ -395,6 +512,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
           <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
             {selectedCollection?.name || "Collection"} ({filtered.length})
+            {sellingMode && <span style={{ color: "#F2B705", fontSize: 14, marginLeft: 8 }}>· Selling Mode</span>}
           </h2>
 
           <div
@@ -409,6 +527,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             )}
 
             {filtered.map((row) => {
+              const held = daysHeld(row.createdAt)
+
               if (row.kind === "card") {
                 const card = row.cardMeta
                 const market = row.market
@@ -419,6 +539,11 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     <div style={imageCol}>
                       {row.image && (
                         <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />
+                      )}
+                      {held != null && (
+                        <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>
+                          {held} day(s)
+                        </div>
                       )}
                     </div>
                     <div style={infoCol}>
@@ -465,12 +590,16 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                         </div>
                       )}
 
-                      <form action={removeCardFromCollection} style={{ marginTop: 10 }}>
-                        <input type="hidden" name="id" value={row.id} />
-                        <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
-                          Remove
-                        </button>
-                      </form>
+                      {sellingMode ? (
+                        <SellForm id={row.id} itemType="card" />
+                      ) : (
+                        <form action={removeCardFromCollection} style={{ marginTop: 10 }}>
+                          <input type="hidden" name="id" value={row.id} />
+                          <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
+                            Remove
+                          </button>
+                        </form>
+                      )}
                     </div>
                   </div>
                 )
@@ -487,6 +616,11 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                   <div style={imageCol}>
                     {row.image && (
                       <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />
+                    )}
+                    {held != null && (
+                      <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>
+                        {held} day(s)
+                      </div>
                     )}
                   </div>
                   <div style={infoCol}>
@@ -507,12 +641,16 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                         {diff.toFixed(2)}
                       </div>
                     )}
-                    <form action={removeSealedFromCollection} style={{ marginTop: 10 }}>
-                      <input type="hidden" name="id" value={row.id} />
-                      <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
-                        Remove
-                      </button>
-                    </form>
+                    {sellingMode ? (
+                      <SellForm id={row.id} itemType="sealed" />
+                    ) : (
+                      <form action={removeSealedFromCollection} style={{ marginTop: 10 }}>
+                        <input type="hidden" name="id" value={row.id} />
+                        <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
+                          Remove
+                        </button>
+                      </form>
+                    )}
                   </div>
                 </div>
               )
