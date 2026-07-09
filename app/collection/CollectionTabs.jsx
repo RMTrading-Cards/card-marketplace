@@ -365,18 +365,50 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState("collection")
+
+  const tab = searchParams.get("tab") || "collection"
   const sellingMode = searchParams.get("selling") === "1"
+  const query = searchParams.get("q") || ""
+  const typeFilter = searchParams.get("type") || "all"
+  const sortBy = searchParams.get("sort") || "date_desc"
+
   const [selectedCollectionId, setSelectedCollectionId] = useState(mainCollectionId)
-  const [query, setQuery] = useState("")
-  const [typeFilter, setTypeFilter] = useState("all")
-  const [sortBy, setSortBy] = useState("date_desc")
 
   const [soldQuery, setSoldQuery] = useState("")
   const [soldTypeFilter, setSoldTypeFilter] = useState("all")
   const [soldSortBy, setSoldSortBy] = useState("date_desc")
 
   const selectedCollection = collections.find((c) => c.id === selectedCollectionId)
+
+  function updateParam(key, value) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value == null || value === "") {
+      params.delete(key)
+    } else {
+      params.set(key, value)
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
+  function setTab(newTab) {
+    updateParam("tab", newTab === "collection" ? null : newTab)
+  }
+
+  function setQuery(newQuery) {
+    updateParam("q", newQuery)
+  }
+
+  function setTypeFilter(newType) {
+    updateParam("type", newType === "all" ? null : newType)
+  }
+
+  function setSortBy(newSort) {
+    updateParam("sort", newSort === "date_desc" ? null : newSort)
+  }
+
+  function toggleSellingMode() {
+    updateParam("selling", sellingMode ? null : "1")
+  }
 
   const combined = useMemo(() => {
     const cardRows = (myCards || []).map((item) => ({
@@ -508,16 +540,6 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
     return list
   }, [activeInCollection, query, typeFilter, sortBy])
 
-  function toggleSellingMode() {
-    const params = new URLSearchParams(searchParams.toString())
-    if (sellingMode) {
-      params.delete("selling")
-    } else {
-      params.set("selling", "1")
-    }
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }
-
   async function handleClearSold() {
     if (!confirm("Clear sold history and reset actual profit for this collection? This can't be undone.")) return
     const formData = new FormData()
@@ -597,11 +619,11 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               <option value="sealed">Sealed Only</option>
             </select>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={controlStyle}>
+              <option value="date_desc">Newest Added</option>
+              <option value="date_asc">Oldest Added</option>
               <option value="name">Name A → Z</option>
               <option value="price_desc">Price High → Low</option>
               <option value="price_asc">Price Low → High</option>
-              <option value="date_desc">Newest Added</option>
-              <option value="date_asc">Oldest Added</option>
             </select>
           </div>
 
