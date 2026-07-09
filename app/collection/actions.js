@@ -80,6 +80,7 @@ export async function addCardToCollection(formData) {
     .eq("card_id", cardId)
     .eq("condition", condition)
     .eq("variant", variant)
+    .is("sold_at", null)
 
   existingQuery =
     purchasePrice == null
@@ -157,6 +158,7 @@ export async function addSealedToCollection(formData) {
     .select("id, quantity")
     .eq("user_id", user.id)
     .eq("product_id", productId)
+    .is("sold_at", null)
 
   existingQuery =
     purchasePrice == null
@@ -404,6 +406,7 @@ export async function updateItemPurchasePrice(formData) {
     .select("id, quantity")
     .eq("user_id", current.user_id)
     .neq("id", id)
+    .is("sold_at", null)
 
   if (itemType === "sealed") {
     dupQuery = dupQuery.eq("product_id", current.product_id)

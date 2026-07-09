@@ -542,9 +542,6 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                 {totals.profit >= 0 ? "+" : ""}{formatPrice(totals.profit)}
               </div>
             </div>
-            {sellingMode && (
-              <ActualProfitBox label="Actual Profit / Loss" value={actualProfit} onClear={handleClearSold} />
-            )}
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
