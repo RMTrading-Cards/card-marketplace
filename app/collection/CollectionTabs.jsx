@@ -19,10 +19,11 @@ function formatPrice(n) {
   return n == null ? "—" : `$${n.toFixed(2)}`
 }
 
-function daysHeld(createdAt) {
-  if (!createdAt) return null
-  const diffMs = Date.now() - new Date(createdAt).getTime()
-  return Math.max(0, Math.floor(diffMs / 86400000))
+function daysBetween(startAt, endAt) {
+  if (!startAt) return null
+  const start = new Date(startAt).getTime()
+  const end = endAt ? new Date(endAt).getTime() : Date.now()
+  return Math.max(0, Math.floor((end - start) / 86400000))
 }
 
 function getVariantPrice(card, variant) {
@@ -368,9 +369,33 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   )
 
   const soldInCollection = useMemo(
-    () => combined.filter((row) => row.collectionId === selectedCollectionId && row.soldAt != null),
+    () =>
+      combined
+        .filter((row) => row.collectionId === selectedCollectionId && row.soldAt != null)
+        .sort((a, b) => new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime()),
     [combined, selectedCollectionId]
   )
+
+  const soldAverages = useMemo(() => {
+    const groups = {}
+    for (const row of soldInCollection) {
+      if (row.soldPrice == null) continue
+      const key =
+        row.kind === "card"
+          ? `card-${row.cardMeta?.id}-${row.variant || "Standard"}`
+          : `sealed-${row.name}`
+      if (!groups[key]) groups[key] = { totalRevenue: 0, totalQty: 0, count: 0 }
+      groups[key].totalRevenue += row.soldPrice * row.quantity
+      groups[key].totalQty += row.quantity
+      groups[key].count += 1
+    }
+    const averages = {}
+    for (const key in groups) {
+      const g = groups[key]
+      averages[key] = { avg: g.totalRevenue / g.totalQty, count: g.count }
+    }
+    return averages
+  }, [soldInCollection])
 
   const totals = useMemo(() => {
     let paid = 0
@@ -434,9 +459,12 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
         .rmt-remove-btn:active { transform: scale(0.96); }
       `}</style>
 
-      <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
         <button className={`rmt-tab${tab === "collection" ? " rmt-tab-active" : ""}`} onClick={() => setTab("collection")} style={tabButtonBase}>
           Collection
+        </button>
+        <button className={`rmt-tab${tab === "sold" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sold")} style={tabButtonBase}>
+          Sold History
         </button>
         <button className={`rmt-tab${tab === "cards" ? " rmt-tab-active" : ""}`} onClick={() => setTab("cards")} style={tabButtonBase}>
           Add Cards
@@ -472,13 +500,13 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               </div>
             </div>
             {sellingMode && (
-              <div style={statBox}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ ...statBox, minWidth: 220 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ color: "#9ca3af", fontSize: 12 }}>Actual Profit / Loss</span>
                   <button
                     onClick={handleClearSold}
-                    className="rmt-tab"
-                    style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#9ca3af", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer" }}
+                    className="rmt-remove-btn"
+                    style={{ backgroundColor: "#2a1414", border: "1px solid #3a1a1a", color: "#f87171", borderRadius: 6, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
                   >
                     Clear
                   </button>
@@ -527,7 +555,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             )}
 
             {filtered.map((row) => {
-              const held = daysHeld(row.createdAt)
+              const held = daysBetween(row.createdAt, null)
 
               if (row.kind === "card") {
                 const card = row.cardMeta
@@ -542,7 +570,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       )}
                       {held != null && (
                         <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>
-                          {held} day(s)
+                          Held for: {held} day(s)
                         </div>
                       )}
                     </div>
@@ -619,7 +647,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     )}
                     {held != null && (
                       <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>
-                        {held} day(s)
+                        Held for: {held} day(s)
                       </div>
                     )}
                   </div>
@@ -650,6 +678,97 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           Remove
                         </button>
                       </form>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {tab === "sold" && (
+        <div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+            <div style={statBox}>
+              <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>Items Sold</div>
+              <div style={{ color: "#ffffff", fontSize: 20, fontWeight: 700 }}>{soldInCollection.length}</div>
+            </div>
+            <div style={{ ...statBox, minWidth: 220 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ color: "#9ca3af", fontSize: 12 }}>Actual Profit / Loss</span>
+                <button
+                  onClick={handleClearSold}
+                  className="rmt-remove-btn"
+                  style={{ backgroundColor: "#2a1414", border: "1px solid #3a1a1a", color: "#f87171", borderRadius: 6, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Clear
+                </button>
+              </div>
+              <div style={{ color: actualProfit >= 0 ? "#4ade80" : "#f87171", fontSize: 20, fontWeight: 700 }}>
+                {actualProfit >= 0 ? "+" : ""}{formatPrice(actualProfit)}
+              </div>
+            </div>
+          </div>
+
+          <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
+            Sold History — {selectedCollection?.name || "Collection"} ({soldInCollection.length})
+          </h2>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 16,
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            }}
+          >
+            {soldInCollection.length === 0 && (
+              <p style={{ color: "#9ca3af", fontStyle: "italic" }}>Nothing sold yet.</p>
+            )}
+
+            {soldInCollection.map((row) => {
+              const held = daysBetween(row.createdAt, row.soldAt)
+              const profit =
+                row.soldPrice != null && row.purchasePrice != null
+                  ? (row.soldPrice - row.purchasePrice) * row.quantity
+                  : null
+              const name = row.kind === "card" ? row.cardMeta?.name : row.name
+              const avgKey =
+                row.kind === "card"
+                  ? `card-${row.cardMeta?.id}-${row.variant || "Standard"}`
+                  : `sealed-${row.name}`
+              const avgInfo = soldAverages[avgKey]
+
+              return (
+                <div key={`sold-${row.kind}-${row.id}`} style={cardBox}>
+                  <div style={imageCol}>
+                    {row.image && (
+                      <img src={row.image} alt={name} style={{ width: "100%", borderRadius: 6 }} />
+                    )}
+                    {held != null && (
+                      <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>
+                        Held for: {held} day(s)
+                      </div>
+                    )}
+                  </div>
+                  <div style={infoCol}>
+                    <strong>{name}</strong>{" "}
+                    <span style={{ color: "#9ca3af" }}>({row.subLabel})</span>
+                    <div style={{ fontSize: 13, marginTop: 6 }}>
+                      Qty: {row.quantity} · Paid: {formatPrice(row.purchasePrice)} · Sold: {formatPrice(row.soldPrice)}
+                    </div>
+                    {profit != null && (
+                      <div style={{ color: profit >= 0 ? "#4ade80" : "#f87171", fontWeight: 700, marginTop: 4 }}>
+                        {profit >= 0 ? "+" : ""}{formatPrice(profit)}
+                      </div>
+                    )}
+                    <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+                      Sold on {row.soldAt ? new Date(row.soldAt).toLocaleDateString() : "—"}
+                    </div>
+                    {avgInfo && avgInfo.count > 1 && (
+                      <div style={{ color: "#F2B705", fontSize: 12, marginTop: 4, fontWeight: 600 }}>
+                        Average Sold ({avgInfo.count}x): {formatPrice(avgInfo.avg)}
+                      </div>
                     )}
                   </div>
                 </div>
