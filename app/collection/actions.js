@@ -396,3 +396,55 @@ export async function updateItemPurchasePrice(formData) {
   if (error) throw new Error(error.message)
   revalidatePath("/collection")
 }
+
+export async function sellCardItem(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const soldPrice = Number(formData.get("sold_price"))
+  if (isNaN(soldPrice)) throw new Error("Invalid sold price")
+
+  const { error } = await supabase
+    .from("user_cards")
+    .update({ sold_price: soldPrice, sold_at: new Date().toISOString() })
+    .eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function sellSealedItem(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const soldPrice = Number(formData.get("sold_price"))
+  if (isNaN(soldPrice)) throw new Error("Invalid sold price")
+
+  const { error } = await supabase
+    .from("user_sealed_items")
+    .update({ sold_price: soldPrice, sold_at: new Date().toISOString() })
+    .eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function clearSoldHistory(formData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const collectionId = formData.get("collection_id")
+
+  await supabase
+    .from("user_cards")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("collection_id", collectionId)
+    .not("sold_at", "is", null)
+
+  await supabase
+    .from("user_sealed_items")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("collection_id", collectionId)
+    .not("sold_at", "is", null)
+
+  revalidatePath("/collection")
+}
