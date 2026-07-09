@@ -370,7 +370,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   const [selectedCollectionId, setSelectedCollectionId] = useState(mainCollectionId)
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
-  const [sortBy, setSortBy] = useState("name")
+  const [sortBy, setSortBy] = useState("date_desc")
 
   const [soldQuery, setSoldQuery] = useState("")
   const [soldTypeFilter, setSoldTypeFilter] = useState("all")
