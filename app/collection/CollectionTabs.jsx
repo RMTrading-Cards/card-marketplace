@@ -501,6 +501,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       if (sortBy === "name") return a.name.localeCompare(b.name)
       if (sortBy === "price_desc") return effB - effA
       if (sortBy === "price_asc") return (a.market ?? a.manualPrice ?? Infinity) - (b.market ?? b.manualPrice ?? Infinity)
+      if (sortBy === "date_desc") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      if (sortBy === "date_asc") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       return 0
     })
     return list
@@ -598,6 +600,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               <option value="name">Name A → Z</option>
               <option value="price_desc">Price High → Low</option>
               <option value="price_asc">Price Low → High</option>
+              <option value="date_desc">Newest Added</option>
+              <option value="date_asc">Oldest Added</option>
             </select>
           </div>
 

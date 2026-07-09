@@ -2,6 +2,16 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
+function isSameDay(dateA, dateB) {
+  const a = new Date(dateA)
+  const b = new Date(dateB)
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  )
+}
+
 export async function searchCards(query) {
   if (!query || query.trim().length < 2) return []
 
@@ -75,7 +85,7 @@ export async function addCardToCollection(formData) {
 
   let existingQuery = supabase
     .from("user_cards")
-    .select("id, quantity")
+    .select("id, quantity, created_at")
     .eq("user_id", user.id)
     .eq("card_id", cardId)
     .eq("condition", condition)
@@ -94,7 +104,9 @@ export async function addCardToCollection(formData) {
   const { data: existing, error: findError } = await existingQuery.maybeSingle()
   if (findError) throw new Error(findError.message)
 
-  if (existing) {
+  const nowIso = new Date().toISOString()
+
+  if (existing && isSameDay(existing.created_at, nowIso)) {
     const { error } = await supabase
       .from("user_cards")
       .update({ quantity: existing.quantity + quantity })
@@ -155,7 +167,7 @@ export async function addSealedToCollection(formData) {
 
   let existingQuery = supabase
     .from("user_sealed_items")
-    .select("id, quantity")
+    .select("id, quantity, created_at")
     .eq("user_id", user.id)
     .eq("product_id", productId)
     .is("sold_at", null)
@@ -172,7 +184,9 @@ export async function addSealedToCollection(formData) {
   const { data: existing, error: findError } = await existingQuery.maybeSingle()
   if (findError) throw new Error(findError.message)
 
-  if (existing) {
+  const nowIso = new Date().toISOString()
+
+  if (existing && isSameDay(existing.created_at, nowIso)) {
     const { error } = await supabase
       .from("user_sealed_items")
       .update({ quantity: existing.quantity + quantity })
@@ -403,7 +417,7 @@ export async function updateItemPurchasePrice(formData) {
 
   let dupQuery = supabase
     .from(table)
-    .select("id, quantity")
+    .select("id, quantity, created_at")
     .eq("user_id", current.user_id)
     .neq("id", id)
     .is("sold_at", null)
@@ -430,7 +444,7 @@ export async function updateItemPurchasePrice(formData) {
   const { data: duplicate, error: dupError } = await dupQuery.maybeSingle()
   if (dupError) throw new Error(dupError.message)
 
-  if (duplicate) {
+  if (duplicate && isSameDay(duplicate.created_at, current.created_at)) {
     const { error: mergeError } = await supabase
       .from(table)
       .update({ quantity: duplicate.quantity + current.quantity })
