@@ -16,8 +16,27 @@ import {
   removeSoldItem,
 } from "./actions"
 
+const EBAY_FVF_RATE = 0.1325
+const EBAY_PER_ORDER_FEE = 0.40
+const ESTIMATED_SHIP_COST = 4.50
+
+function ebayPayout(value) {
+  if (value == null) return null
+  return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
+}
+
+function ebayListPrice(targetNet) {
+  if (targetNet == null) return null
+  return (targetNet + EBAY_PER_ORDER_FEE + ESTIMATED_SHIP_COST) / (1 - EBAY_FVF_RATE)
+}
+
 function formatPrice(n) {
   return n == null ? "—" : `$${n.toFixed(2)}`
+}
+
+function marginPercent(value, paid) {
+  if (value == null || paid == null || paid === 0) return null
+  return ((value - paid) / paid) * 100
 }
 
 function daysBetween(startAt, endAt) {
@@ -51,6 +70,16 @@ function ThresholdRow({ label, value, purchasePrice }) {
           {diff.toFixed(2)}
         </span>
       )}
+    </div>
+  )
+}
+
+function MarginLine({ value, purchasePrice }) {
+  const margin = marginPercent(value, purchasePrice)
+  if (margin == null) return null
+  return (
+    <div style={{ fontSize: 12, fontWeight: 700, color: margin >= 0 ? "#4ade80" : "#f87171", marginTop: 2 }}>
+      Margin: {margin >= 0 ? "+" : ""}{margin.toFixed(1)}%
     </div>
   )
 }
@@ -372,13 +401,16 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   const typeFilter = searchParams.get("type") || "all"
   const sortBy = searchParams.get("sort") || "date_desc"
 
-  const [selectedCollectionId, setSelectedCollectionId] = useState(mainCollectionId)
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState([mainCollectionId].filter(Boolean))
 
   const [soldQuery, setSoldQuery] = useState("")
   const [soldTypeFilter, setSoldTypeFilter] = useState("all")
   const [soldSortBy, setSoldSortBy] = useState("date_desc")
 
-  const selectedCollection = collections.find((c) => c.id === selectedCollectionId)
+  const selectedNames = collections
+    .filter((c) => selectedCollectionIds.includes(c.id))
+    .map((c) => c.name)
+    .join(", ")
 
   function updateParam(key, value) {
     const params = new URLSearchParams(searchParams.toString())
@@ -448,16 +480,16 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   }, [myCards, mySealed])
 
   const activeInCollection = useMemo(
-    () => combined.filter((row) => row.collectionId === selectedCollectionId && row.soldAt == null),
-    [combined, selectedCollectionId]
+    () => combined.filter((row) => selectedCollectionIds.includes(row.collectionId) && row.soldAt == null),
+    [combined, selectedCollectionIds]
   )
 
   const soldInCollection = useMemo(
     () =>
       combined
-        .filter((row) => row.collectionId === selectedCollectionId && row.soldAt != null)
+        .filter((row) => selectedCollectionIds.includes(row.collectionId) && row.soldAt != null)
         .sort((a, b) => new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime()),
-    [combined, selectedCollectionId]
+    [combined, selectedCollectionIds]
   )
 
   const soldAverages = useMemo(() => {
@@ -489,11 +521,15 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       list = list.filter((row) => row.kind === soldTypeFilter)
     }
     list.sort((a, b) => {
+      const marginA = marginPercent(a.soldPrice, a.purchasePrice) ?? -Infinity
+      const marginB = marginPercent(b.soldPrice, b.purchasePrice) ?? -Infinity
       if (soldSortBy === "name") return a.name.localeCompare(b.name)
       if (soldSortBy === "price_desc") return (b.soldPrice ?? -1) - (a.soldPrice ?? -1)
       if (soldSortBy === "price_asc") return (a.soldPrice ?? Infinity) - (b.soldPrice ?? Infinity)
       if (soldSortBy === "date_desc") return new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime()
       if (soldSortBy === "date_asc") return new Date(a.soldAt).getTime() - new Date(b.soldAt).getTime()
+      if (soldSortBy === "margin_desc") return marginB - marginA
+      if (soldSortBy === "margin_asc") return marginA - marginB
       return 0
     })
     return list
@@ -530,23 +566,31 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
     list.sort((a, b) => {
       const effA = a.market ?? a.manualPrice ?? -1
       const effB = b.market ?? b.manualPrice ?? -1
+      const marginA = marginPercent(a.market ?? a.manualPrice, a.purchasePrice) ?? -Infinity
+      const marginB = marginPercent(b.market ?? b.manualPrice, b.purchasePrice) ?? -Infinity
       if (sortBy === "name") return a.name.localeCompare(b.name)
       if (sortBy === "price_desc") return effB - effA
       if (sortBy === "price_asc") return (a.market ?? a.manualPrice ?? Infinity) - (b.market ?? b.manualPrice ?? Infinity)
       if (sortBy === "date_desc") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       if (sortBy === "date_asc") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      if (sortBy === "margin_desc") return marginB - marginA
+      if (sortBy === "margin_asc") return marginA - marginB
       return 0
     })
     return list
   }, [activeInCollection, query, typeFilter, sortBy])
 
   async function handleClearSold() {
-    if (!confirm("Clear sold history and reset actual profit for this collection? This can't be undone.")) return
-    const formData = new FormData()
-    formData.set("collection_id", selectedCollectionId)
-    await clearSoldHistory(formData)
+    if (!confirm("Clear sold history and reset actual profit for the selected collection(s)? This can't be undone.")) return
+    for (const id of selectedCollectionIds) {
+      const formData = new FormData()
+      formData.set("collection_id", id)
+      await clearSoldHistory(formData)
+    }
     router.refresh()
   }
+
+  const addTargetCollectionId = selectedCollectionIds[0] || mainCollectionId
 
   return (
     <div>
@@ -582,8 +626,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
         <div>
           <CollectionSelector
             collections={collections}
-            selectedId={selectedCollectionId}
-            onSelect={setSelectedCollectionId}
+            selectedIds={selectedCollectionIds}
+            onSelectionChange={setSelectedCollectionIds}
             sellingMode={sellingMode}
             onToggleSelling={toggleSellingMode}
           />
@@ -624,11 +668,13 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               <option value="name">Name A → Z</option>
               <option value="price_desc">Price High → Low</option>
               <option value="price_asc">Price Low → High</option>
+              <option value="margin_desc">Margin % High → Low</option>
+              <option value="margin_asc">Margin % Low → High</option>
             </select>
           </div>
 
           <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-            {selectedCollection?.name || "Collection"} ({filtered.length})
+            {selectedNames || "Collection"} ({filtered.length})
             {sellingMode && <span style={{ color: "#F2B705", fontSize: 14, marginLeft: 8 }}>· Selling Mode</span>}
           </h2>
 
@@ -650,6 +696,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                 const card = row.cardMeta
                 const market = row.market
                 const purchasePrice = row.purchasePrice
+                const effectivePrice = market ?? row.manualPrice
+                const payout = ebayPayout(effectivePrice)
 
                 return (
                   <div key={`card-${row.id}`} style={cardBox}>
@@ -684,20 +732,24 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                         <EditablePaid id={row.id} itemType="card" purchasePrice={purchasePrice} />
                       </div>
 
+                      <MarginLine value={effectivePrice} purchasePrice={purchasePrice} />
+
                       {market != null ? (
-                        <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
                           <ThresholdRow label="85%" value={market * 0.85} purchasePrice={purchasePrice} />
                           <ThresholdRow label="90%" value={market * 0.9} purchasePrice={purchasePrice} />
                           <ThresholdRow label="95%" value={market * 0.95} purchasePrice={purchasePrice} />
                           <ThresholdRow label="Market" value={market} purchasePrice={purchasePrice} />
+                          <ThresholdRow label="eBay Payout (~87%)" value={payout} purchasePrice={purchasePrice} />
                         </div>
                       ) : row.manualPrice != null ? (
-                        <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
                           <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>Manually set value:</div>
                           <ThresholdRow label="85%" value={row.manualPrice * 0.85} purchasePrice={purchasePrice} />
                           <ThresholdRow label="90%" value={row.manualPrice * 0.9} purchasePrice={purchasePrice} />
                           <ThresholdRow label="95%" value={row.manualPrice * 0.95} purchasePrice={purchasePrice} />
                           <ThresholdRow label="Market (manual)" value={row.manualPrice} purchasePrice={purchasePrice} />
+                          <ThresholdRow label="eBay Payout (~87%)" value={payout} purchasePrice={purchasePrice} />
                           <ManualPriceInput id={row.id} itemType="card" currentValue={row.manualPrice} />
                         </div>
                       ) : (
@@ -727,6 +779,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                 effectiveMarket != null && row.purchasePrice != null
                   ? effectiveMarket - row.purchasePrice
                   : null
+              const payout = ebayPayout(effectiveMarket)
 
               return (
                 <div key={`sealed-${row.id}`} style={cardBox}>
@@ -749,14 +802,14 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       <EditablePaid id={row.id} itemType="sealed" purchasePrice={row.purchasePrice} />
                       <span>· Market: {formatPrice(row.market)}</span>
                     </div>
+                    <MarginLine value={effectiveMarket} purchasePrice={row.purchasePrice} />
+                    {payout != null && (
+                      <div style={{ fontSize: 12, color: "#d1d5db", marginTop: 2 }}>
+                        eBay Payout (~87%): {formatPrice(payout)}
+                      </div>
+                    )}
                     {row.market == null && (
                       <ManualPriceInput id={row.id} itemType="sealed" currentValue={row.manualPrice} />
-                    )}
-                    {diff != null && (
-                      <div style={{ color: diff >= 0 ? "#4ade80" : "#f87171" }}>
-                        {diff >= 0 ? "+" : ""}
-                        {diff.toFixed(2)}
-                      </div>
                     )}
                     {sellingMode ? (
                       <SellForm id={row.id} itemType="sealed" availableQuantity={row.quantity} />
@@ -805,11 +858,13 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               <option value="name">Name A → Z</option>
               <option value="price_desc">Sold Price High → Low</option>
               <option value="price_asc">Sold Price Low → High</option>
+              <option value="margin_desc">Margin % High → Low</option>
+              <option value="margin_asc">Margin % Low → High</option>
             </select>
           </div>
 
           <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-            Sold History — {selectedCollection?.name || "Collection"} ({filteredSold.length})
+            Sold History — {selectedNames || "Collection"} ({filteredSold.length})
           </h2>
 
           <div
@@ -854,6 +909,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     <div style={{ fontSize: 13, marginTop: 6 }}>
                       Qty: {row.quantity} · Paid: {formatPrice(row.purchasePrice)} · Sold: {formatPrice(row.soldPrice)}
                     </div>
+                    <MarginLine value={row.soldPrice} purchasePrice={row.purchasePrice} />
                     {profit != null && (
                       <div style={{ color: profit >= 0 ? "#4ade80" : "#f87171", fontWeight: 700, marginTop: 4 }}>
                         {profit >= 0 ? "+" : ""}{formatPrice(profit)}
@@ -883,10 +939,10 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       )}
 
       {tab === "cards" && (
-        <AddCardsSearch collectionId={selectedCollectionId} onAdded={() => setTab("collection")} />
+        <AddCardsSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />
       )}
       {tab === "sealed" && (
-        <AddSealedSearch collectionId={selectedCollectionId} onAdded={() => setTab("collection")} />
+        <AddSealedSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />
       )}
     </div>
   )

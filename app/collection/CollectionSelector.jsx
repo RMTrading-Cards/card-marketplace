@@ -3,11 +3,37 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createCollection, renameCollection, deleteCollection, setMainCollection } from "./actions"
 
-export default function CollectionSelector({ collections, selectedId, onSelect, sellingMode, onToggleSelling }) {
+export default function CollectionSelector({ collections, selectedIds, onSelectionChange, sellingMode, onToggleSelling }) {
   const [managing, setManaging] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [renamingId, setRenamingId] = useState(null)
   const router = useRouter()
+
+  const allIds = collections.map((c) => c.id)
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.includes(id))
+
+  function toggleAll() {
+    onSelectionChange(allSelected ? [collections.find((c) => c.is_main)?.id].filter(Boolean) : allIds)
+  }
+
+  function toggleOne(id) {
+    if (selectedIds.includes(id)) {
+      const next = selectedIds.filter((x) => x !== id)
+      onSelectionChange(next.length > 0 ? next : [id])
+    } else {
+      onSelectionChange([...selectedIds, id])
+    }
+  }
+
+  function pickerLabel() {
+    if (allSelected) return "All Collections"
+    if (selectedIds.length === 1) {
+      const c = collections.find((x) => x.id === selectedIds[0])
+      return c ? `${c.name}${c.is_main ? " (Main)" : ""}` : "Select Collection"
+    }
+    return `${selectedIds.length} Collections Selected`
+  }
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -31,9 +57,9 @@ export default function CollectionSelector({ collections, selectedId, onSelect, 
     const formData = new FormData()
     formData.set("id", id)
     await deleteCollection(formData)
-    if (selectedId === id) {
+    if (selectedIds.includes(id)) {
       const main = collections.find((c) => c.is_main)
-      onSelect(main?.id)
+      onSelectionChange([main?.id].filter(Boolean))
     }
     router.refresh()
   }
@@ -48,24 +74,58 @@ export default function CollectionSelector({ collections, selectedId, onSelect, 
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <select
-          value={selectedId || ""}
-          onChange={(e) => onSelect(e.target.value)}
-          style={{
-            backgroundColor: "#141414",
-            border: "1px solid #2a2a2a",
-            color: "#ffffff",
-            borderRadius: 8,
-            padding: "10px 14px",
-            fontSize: 16,
-          }}
-        >
-          {collections.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}{c.is_main ? " (Main)" : ""}
-            </option>
-          ))}
-        </select>
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setPickerOpen(!pickerOpen)}
+            className="rmt-tab"
+            style={{
+              backgroundColor: "#141414",
+              border: "1px solid #2a2a2a",
+              color: "#ffffff",
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 14,
+              cursor: "pointer",
+              minWidth: 180,
+              textAlign: "left",
+            }}
+          >
+            {pickerLabel()} ▾
+          </button>
+
+          {pickerOpen && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 6px)",
+                left: 0,
+                zIndex: 20,
+                backgroundColor: "#141414",
+                border: "1px solid #2a2a2a",
+                borderRadius: 8,
+                padding: 12,
+                minWidth: 240,
+              }}
+            >
+              <label style={{ display: "flex", alignItems: "center", gap: 8, color: "#F2B705", fontSize: 14, fontWeight: 600, marginBottom: 8, cursor: "pointer" }}>
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                All Collections
+              </label>
+              <div style={{ borderTop: "1px solid #222", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                {collections.map((c) => (
+                  <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, color: "#ffffff", fontSize: 14, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(c.id)}
+                      onChange={() => toggleOne(c.id)}
+                    />
+                    {c.name}{c.is_main ? " (Main)" : ""}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <button
           onClick={() => setManaging(!managing)}

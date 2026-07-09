@@ -48,6 +48,20 @@ function getVariants(card) {
   return variants
 }
 
+const EBAY_FVF_RATE = 0.1325
+const EBAY_PER_ORDER_FEE = 0.40
+const ESTIMATED_SHIP_COST = 4.50
+
+function ebayPayout(value) {
+  if (value == null) return null
+  return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
+}
+
+function ebayListPrice(targetNet) {
+  if (targetNet == null) return null
+  return (targetNet + EBAY_PER_ORDER_FEE + ESTIMATED_SHIP_COST) / (1 - EBAY_FVF_RATE)
+}
+
 function CardResult({ card, variant, onAdded, collectionId }) {
   const market = variant.price
   const [quantity, setQuantity] = useState(1)
@@ -102,8 +116,19 @@ function CardResult({ card, variant, onAdded, collectionId }) {
         </p>
 
         {market != null && (
-          <div style={{ marginBottom: 12 }}>
-            {thresholds.map((pct) => {
+        <div style={{ marginBottom: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#d1d5db" }}>
+            <span>eBay Payout (~87%): {formatPrice(ebayPayout(market))}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9ca3af" }}>
+            <span>eBay List Price (to net market): {formatPrice(ebayListPrice(market))}</span>
+          </div>
+        </div>
+      )}
+
+      {market != null && (
+        <div style={{ marginBottom: 12 }}>
+          {thresholds.map((pct) => {
               const value = market * pct
               const diff = parsedPrice != null ? value - parsedPrice : null
               return (
