@@ -13,6 +13,7 @@ import {
   sellCardItem,
   sellSealedItem,
   clearSoldHistory,
+  removeSoldItem,
 } from "./actions"
 
 function formatPrice(n) {
@@ -344,6 +345,10 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   const [typeFilter, setTypeFilter] = useState("all")
   const [sortBy, setSortBy] = useState("name")
 
+  const [soldQuery, setSoldQuery] = useState("")
+  const [soldTypeFilter, setSoldTypeFilter] = useState("all")
+  const [soldSortBy, setSoldSortBy] = useState("date_desc")
+
   const selectedCollection = collections.find((c) => c.id === selectedCollectionId)
 
   const combined = useMemo(() => {
@@ -416,6 +421,24 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
     }
     return averages
   }, [soldInCollection])
+
+  const filteredSold = useMemo(() => {
+    let list = soldInCollection.filter((row) =>
+      row.name.toLowerCase().includes(soldQuery.toLowerCase())
+    )
+    if (soldTypeFilter !== "all") {
+      list = list.filter((row) => row.kind === soldTypeFilter)
+    }
+    list.sort((a, b) => {
+      if (soldSortBy === "name") return a.name.localeCompare(b.name)
+      if (soldSortBy === "price_desc") return (b.soldPrice ?? -1) - (a.soldPrice ?? -1)
+      if (soldSortBy === "price_asc") return (a.soldPrice ?? Infinity) - (b.soldPrice ?? Infinity)
+      if (soldSortBy === "date_desc") return new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime()
+      if (soldSortBy === "date_asc") return new Date(a.soldAt).getTime() - new Date(b.soldAt).getTime()
+      return 0
+    })
+    return list
+  }, [soldInCollection, soldQuery, soldTypeFilter, soldSortBy])
 
   const totals = useMemo(() => {
     let paid = 0
@@ -703,8 +726,30 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             <ActualProfitBox label="Actual Profit / Loss" value={actualProfit} onClear={handleClearSold} />
           </div>
 
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
+            <input
+              type="text"
+              placeholder="Search sold history..."
+              value={soldQuery}
+              onChange={(e) => setSoldQuery(e.target.value)}
+              style={{ ...controlStyle, flex: 1, minWidth: 200 }}
+            />
+            <select value={soldTypeFilter} onChange={(e) => setSoldTypeFilter(e.target.value)} style={controlStyle}>
+              <option value="all">All Items</option>
+              <option value="card">Cards Only</option>
+              <option value="sealed">Sealed Only</option>
+            </select>
+            <select value={soldSortBy} onChange={(e) => setSoldSortBy(e.target.value)} style={controlStyle}>
+              <option value="date_desc">Newest Sold</option>
+              <option value="date_asc">Oldest Sold</option>
+              <option value="name">Name A → Z</option>
+              <option value="price_desc">Sold Price High → Low</option>
+              <option value="price_asc">Sold Price Low → High</option>
+            </select>
+          </div>
+
           <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-            Sold History — {selectedCollection?.name || "Collection"} ({soldInCollection.length})
+            Sold History — {selectedCollection?.name || "Collection"} ({filteredSold.length})
           </h2>
 
           <div
@@ -714,11 +759,11 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
             }}
           >
-            {soldInCollection.length === 0 && (
-              <p style={{ color: "#9ca3af", fontStyle: "italic" }}>Nothing sold yet.</p>
+            {filteredSold.length === 0 && (
+              <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No sold items found.</p>
             )}
 
-            {soldInCollection.map((row) => {
+            {filteredSold.map((row) => {
               const held = daysBetween(row.createdAt, row.soldAt)
               const profit =
                 row.soldPrice != null && row.purchasePrice != null
@@ -762,6 +807,13 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                         Average Sold ({avgInfo.count}x): {formatPrice(avgInfo.avg)}
                       </div>
                     )}
+                    <form action={removeSoldItem} style={{ marginTop: 10 }}>
+                      <input type="hidden" name="id" value={row.id} />
+                      <input type="hidden" name="item_type" value={row.kind} />
+                      <button type="submit" className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", borderRadius: 6, padding: "6px 12px", fontSize: 14, border: "none", cursor: "pointer" }}>
+                        Remove from History
+                      </button>
+                    </form>
                   </div>
                 </div>
               )

@@ -392,8 +392,55 @@ export async function updateItemPurchasePrice(formData) {
     : null
   const table = itemType === "sealed" ? "user_sealed_items" : "user_cards"
 
-  const { error } = await supabase.from(table).update({ purchase_price: purchasePrice }).eq("id", id)
-  if (error) throw new Error(error.message)
+  const { data: current, error: findError } = await supabase
+    .from(table)
+    .select("*")
+    .eq("id", id)
+    .single()
+  if (findError) throw new Error(findError.message)
+
+  let dupQuery = supabase
+    .from(table)
+    .select("id, quantity")
+    .eq("user_id", current.user_id)
+    .neq("id", id)
+
+  if (itemType === "sealed") {
+    dupQuery = dupQuery.eq("product_id", current.product_id)
+  } else {
+    dupQuery = dupQuery
+      .eq("card_id", current.card_id)
+      .eq("condition", current.condition)
+      .eq("variant", current.variant)
+  }
+
+  dupQuery =
+    current.collection_id
+      ? dupQuery.eq("collection_id", current.collection_id)
+      : dupQuery.is("collection_id", null)
+
+  dupQuery =
+    purchasePrice == null
+      ? dupQuery.is("purchase_price", null)
+      : dupQuery.eq("purchase_price", purchasePrice)
+
+  const { data: duplicate, error: dupError } = await dupQuery.maybeSingle()
+  if (dupError) throw new Error(dupError.message)
+
+  if (duplicate) {
+    const { error: mergeError } = await supabase
+      .from(table)
+      .update({ quantity: duplicate.quantity + current.quantity })
+      .eq("id", duplicate.id)
+    if (mergeError) throw new Error(mergeError.message)
+
+    const { error: deleteError } = await supabase.from(table).delete().eq("id", id)
+    if (deleteError) throw new Error(deleteError.message)
+  } else {
+    const { error } = await supabase.from(table).update({ purchase_price: purchasePrice }).eq("id", id)
+    if (error) throw new Error(error.message)
+  }
+
   revalidatePath("/collection")
 }
 
@@ -446,5 +493,16 @@ export async function clearSoldHistory(formData) {
     .eq("collection_id", collectionId)
     .not("sold_at", "is", null)
 
+  revalidatePath("/collection")
+}
+
+export async function removeSoldItem(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const itemType = formData.get("item_type")
+  const table = itemType === "sealed" ? "user_sealed_items" : "user_cards"
+
+  const { error } = await supabase.from(table).delete().eq("id", id)
+  if (error) throw new Error(error.message)
   revalidatePath("/collection")
 }
