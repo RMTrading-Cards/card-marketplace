@@ -219,7 +219,7 @@ function EditablePaid({ id, itemType, purchasePrice }) {
 function SellForm({ id, itemType, availableQuantity }) {
   const router = useRouter()
   const [price, setPrice] = useState("")
-  const [qty, setQty] = useState(availableQuantity)
+  const [qty, setQty] = useState(1)
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e) {
@@ -245,7 +245,7 @@ function SellForm({ id, itemType, availableQuantity }) {
           border: "1px solid #2a2a2a",
           color: "#ffffff",
           borderRadius: 6,
-          padding: "6px 8px",
+          padding: "2px 6px",
           fontSize: 16,
         }}
       >
