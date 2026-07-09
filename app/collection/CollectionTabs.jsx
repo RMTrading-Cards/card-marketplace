@@ -266,6 +266,26 @@ function SellForm({ id, itemType }) {
   )
 }
 
+function ActualProfitBox({ label, value, onClear }) {
+  return (
+    <div style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 20px", minWidth: 240 }}>
+      <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 6 }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ color: value >= 0 ? "#4ade80" : "#f87171", fontSize: 20, fontWeight: 700 }}>
+          {value >= 0 ? "+" : ""}{formatPrice(value)}
+        </div>
+        <button
+          onClick={onClear}
+          className="rmt-remove-btn"
+          style={{ backgroundColor: "#2a1414", border: "1px solid #3a1a1a", color: "#f87171", borderRadius: 6, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const cardBox = {
   backgroundColor: "#141414",
   border: "1px solid #2a2a2a",
@@ -500,21 +520,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               </div>
             </div>
             {sellingMode && (
-              <div style={{ ...statBox, minWidth: 220 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ color: "#9ca3af", fontSize: 12 }}>Actual Profit / Loss</span>
-                  <button
-                    onClick={handleClearSold}
-                    className="rmt-remove-btn"
-                    style={{ backgroundColor: "#2a1414", border: "1px solid #3a1a1a", color: "#f87171", borderRadius: 6, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <div style={{ color: actualProfit >= 0 ? "#4ade80" : "#f87171", fontSize: 20, fontWeight: 700 }}>
-                  {actualProfit >= 0 ? "+" : ""}{formatPrice(actualProfit)}
-                </div>
-              </div>
+              <ActualProfitBox label="Actual Profit / Loss" value={actualProfit} onClear={handleClearSold} />
             )}
           </div>
 
@@ -694,21 +700,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>Items Sold</div>
               <div style={{ color: "#ffffff", fontSize: 20, fontWeight: 700 }}>{soldInCollection.length}</div>
             </div>
-            <div style={{ ...statBox, minWidth: 220 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ color: "#9ca3af", fontSize: 12 }}>Actual Profit / Loss</span>
-                <button
-                  onClick={handleClearSold}
-                  className="rmt-remove-btn"
-                  style={{ backgroundColor: "#2a1414", border: "1px solid #3a1a1a", color: "#f87171", borderRadius: 6, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                >
-                  Clear
-                </button>
-              </div>
-              <div style={{ color: actualProfit >= 0 ? "#4ade80" : "#f87171", fontSize: 20, fontWeight: 700 }}>
-                {actualProfit >= 0 ? "+" : ""}{formatPrice(actualProfit)}
-              </div>
-            </div>
+            <ActualProfitBox label="Actual Profit / Loss" value={actualProfit} onClear={handleClearSold} />
           </div>
 
           <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
