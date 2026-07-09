@@ -1,6 +1,6 @@
 ﻿"use client"
 import { useState, useMemo, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import AddCardsSearch from "./AddCardsSearch"
 import AddSealedSearch from "./AddSealedSearch"
 import CollectionSelector from "./CollectionSelector"
@@ -363,8 +363,10 @@ const statBox = {
 
 export default function CollectionTabs({ myCards, mySealed, collections, mainCollectionId }) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [tab, setTab] = useState("collection")
-  const [sellingMode, setSellingMode] = useState(false)
+  const sellingMode = searchParams.get("selling") === "1"
   const [selectedCollectionId, setSelectedCollectionId] = useState(mainCollectionId)
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
@@ -504,6 +506,16 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
     return list
   }, [activeInCollection, query, typeFilter, sortBy])
 
+  function toggleSellingMode() {
+    const params = new URLSearchParams(searchParams.toString())
+    if (sellingMode) {
+      params.delete("selling")
+    } else {
+      params.set("selling", "1")
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
   async function handleClearSold() {
     if (!confirm("Clear sold history and reset actual profit for this collection? This can't be undone.")) return
     const formData = new FormData()
@@ -549,7 +561,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             selectedId={selectedCollectionId}
             onSelect={setSelectedCollectionId}
             sellingMode={sellingMode}
-            onToggleSelling={() => setSellingMode(!sellingMode)}
+            onToggleSelling={toggleSellingMode}
           />
 
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
