@@ -7,6 +7,14 @@ function formatPrice(n) {
   return n == null ? "N/A" : `$${n.toFixed(2)}`
 }
 
+const EBAY_FVF_RATE = 0.1325
+const EBAY_PER_ORDER_FEE = 0.40
+
+function ebayPayout(value) {
+  if (value == null) return null
+  return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
+}
+
 const cardBox = {
   backgroundColor: "#141414",
   border: "1px solid #2a2a2a",
@@ -34,20 +42,6 @@ const inputStyle = {
   padding: "6px 8px",
   fontSize: 16,
   boxSizing: "border-box",
-}
-
-const EBAY_FVF_RATE = 0.1325
-const EBAY_PER_ORDER_FEE = 0.40
-const ESTIMATED_SHIP_COST = 4.50
-
-function ebayPayout(value) {
-  if (value == null) return null
-  return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
-}
-
-function ebayListPrice(targetNet) {
-  if (targetNet == null) return null
-  return (targetNet + EBAY_PER_ORDER_FEE + ESTIMATED_SHIP_COST) / (1 - EBAY_FVF_RATE)
 }
 
 function SealedResult({ product, onAdded, collectionId }) {
@@ -79,19 +73,16 @@ function SealedResult({ product, onAdded, collectionId }) {
         <p style={{ color: "#ffffff", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{product.name}</p>
         <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 8 }}>{product.setName}</p>
         <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8 }}>
-        Market: {formatPrice(product.unopenedPrice)}
-      </p>
-      {product.unopenedPrice != null && (
-        <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 2 }}>
-          <div style={{ fontSize: 11, color: "#d1d5db" }}>
-            eBay Payout (~87%): {formatPrice(ebayPayout(product.unopenedPrice))}
+          Market: {formatPrice(product.unopenedPrice)}
+        </p>
+        {product.unopenedPrice != null && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: "#d1d5db" }}>
+              eBay Payout (~87%): {formatPrice(ebayPayout(product.unopenedPrice))}
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>
-            eBay List Price (to net market): {formatPrice(ebayListPrice(product.unopenedPrice))}
-          </div>
-        </div>
-      )}
-      {diff != null && (
+        )}
+        {diff != null && (
           <p style={{ color: diff >= 0 ? "#4ade80" : "#f87171", fontSize: 12, marginBottom: 8 }}>
             {diff >= 0 ? "+" : ""}
             {diff.toFixed(2)} at market

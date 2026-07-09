@@ -7,6 +7,14 @@ function formatPrice(n) {
   return n == null ? "N/A" : `$${n.toFixed(2)}`
 }
 
+const EBAY_FVF_RATE = 0.1325
+const EBAY_PER_ORDER_FEE = 0.40
+
+function ebayPayout(value) {
+  if (value == null) return null
+  return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
+}
+
 const cardBox = {
   backgroundColor: "#141414",
   border: "1px solid #2a2a2a",
@@ -46,20 +54,6 @@ function getVariants(card) {
     variants.push({ key: "Standard", price: card.tcgplayer_market_price })
   }
   return variants
-}
-
-const EBAY_FVF_RATE = 0.1325
-const EBAY_PER_ORDER_FEE = 0.40
-const ESTIMATED_SHIP_COST = 4.50
-
-function ebayPayout(value) {
-  if (value == null) return null
-  return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
-}
-
-function ebayListPrice(targetNet) {
-  if (targetNet == null) return null
-  return (targetNet + EBAY_PER_ORDER_FEE + ESTIMATED_SHIP_COST) / (1 - EBAY_FVF_RATE)
 }
 
 function CardResult({ card, variant, onAdded, collectionId }) {
@@ -116,19 +110,16 @@ function CardResult({ card, variant, onAdded, collectionId }) {
         </p>
 
         {market != null && (
-        <div style={{ marginBottom: 4, display: "flex", flexDirection: "column", gap: 2 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#d1d5db" }}>
-            <span>eBay Payout (~87%): {formatPrice(ebayPayout(market))}</span>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: "#d1d5db" }}>
+              eBay Payout (~87%): {formatPrice(ebayPayout(market))}
+            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9ca3af" }}>
-            <span>eBay List Price (to net market): {formatPrice(ebayListPrice(market))}</span>
-          </div>
-        </div>
-      )}
+        )}
 
-      {market != null && (
-        <div style={{ marginBottom: 12 }}>
-          {thresholds.map((pct) => {
+        {market != null && (
+          <div style={{ marginBottom: 12 }}>
+            {thresholds.map((pct) => {
               const value = market * pct
               const diff = parsedPrice != null ? value - parsedPrice : null
               return (
@@ -232,22 +223,27 @@ export default function AddCardsSearch({ onAdded, collectionId }) {
     onAdded()
   }
 
+  const sortedResults = useMemo(() => {
+    const list = [...results]
+    if (sortBy === "name") {
+      list.sort((a, b) => a.name.localeCompare(b.name))
+    } else if (sortBy === "price_desc") {
+      list.sort((a, b) => (b.tcgplayer_market_price ?? -1) - (a.tcgplayer_market_price ?? -1))
+    } else if (sortBy === "price_asc") {
+      list.sort((a, b) => (a.tcgplayer_market_price ?? Infinity) - (b.tcgplayer_market_price ?? Infinity))
+    }
+    return list
+  }, [results, sortBy])
+
   const expanded = useMemo(() => {
     const rows = []
-    for (const card of results) {
+    for (const card of sortedResults) {
       for (const variant of getVariants(card)) {
         rows.push({ card, variant })
       }
     }
-    if (sortBy === "name") {
-      rows.sort((a, b) => a.card.name.localeCompare(b.card.name))
-    } else if (sortBy === "price_desc") {
-      rows.sort((a, b) => (b.variant.price ?? -1) - (a.variant.price ?? -1))
-    } else if (sortBy === "price_asc") {
-      rows.sort((a, b) => (a.variant.price ?? Infinity) - (b.variant.price ?? Infinity))
-    }
     return rows
-  }, [results, sortBy])
+  }, [sortedResults])
 
   return (
     <div>
