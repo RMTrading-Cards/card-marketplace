@@ -1,5 +1,5 @@
 ﻿"use client"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import AddCardsSearch from "./AddCardsSearch"
 import AddSealedSearch from "./AddSealedSearch"
@@ -113,14 +113,21 @@ function ManualPriceInput({ id, itemType, currentValue }) {
 
 function QuantityEditor({ id, itemType, quantity }) {
   const router = useRouter()
+  const [value, setValue] = useState(quantity)
   const [submitting, setSubmitting] = useState(false)
 
+  useEffect(() => {
+    setValue(quantity)
+  }, [quantity])
+
   async function handleChange(e) {
+    const newQty = Number(e.target.value)
+    setValue(newQty)
     setSubmitting(true)
     const formData = new FormData()
     formData.set("id", id)
     formData.set("item_type", itemType)
-    formData.set("quantity", e.target.value)
+    formData.set("quantity", newQty)
     await updateItemQuantity(formData)
     setSubmitting(false)
     router.refresh()
@@ -128,7 +135,7 @@ function QuantityEditor({ id, itemType, quantity }) {
 
   return (
     <select
-      defaultValue={quantity}
+      value={value}
       onChange={handleChange}
       disabled={submitting}
       style={{
@@ -209,9 +216,10 @@ function EditablePaid({ id, itemType, purchasePrice }) {
   )
 }
 
-function SellForm({ id, itemType }) {
+function SellForm({ id, itemType, availableQuantity }) {
   const router = useRouter()
-  const [value, setValue] = useState("")
+  const [price, setPrice] = useState("")
+  const [qty, setQty] = useState(availableQuantity)
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e) {
@@ -219,7 +227,8 @@ function SellForm({ id, itemType }) {
     setSubmitting(true)
     const formData = new FormData()
     formData.set("id", id)
-    formData.set("sold_price", value)
+    formData.set("sold_price", price)
+    formData.set("sold_quantity", qty)
     if (itemType === "sealed") await sellSealedItem(formData)
     else await sellCardItem(formData)
     setSubmitting(false)
@@ -227,13 +236,29 @@ function SellForm({ id, itemType }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+      <select
+        value={qty}
+        onChange={(e) => setQty(Number(e.target.value))}
+        style={{
+          backgroundColor: "#0d0d0d",
+          border: "1px solid #2a2a2a",
+          color: "#ffffff",
+          borderRadius: 6,
+          padding: "6px 8px",
+          fontSize: 16,
+        }}
+      >
+        {Array.from({ length: availableQuantity }, (_, i) => i + 1).map((n) => (
+          <option key={n} value={n}>Sell: {n}</option>
+        ))}
+      </select>
       <input
         type="number"
         step="0.01"
-        placeholder="Sold for $"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
+        placeholder="Sold for $ (each)"
+        value={price}
+        onChange={(e) => setPrice(e.target.value)}
         required
         style={{
           backgroundColor: "#0d0d0d",
@@ -645,7 +670,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       )}
 
                       {sellingMode ? (
-                        <SellForm id={row.id} itemType="card" />
+                        <SellForm id={row.id} itemType="card" availableQuantity={row.quantity} />
                       ) : (
                         <form action={removeCardFromCollection} style={{ marginTop: 10 }}>
                           <input type="hidden" name="id" value={row.id} />
@@ -696,7 +721,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       </div>
                     )}
                     {sellingMode ? (
-                      <SellForm id={row.id} itemType="sealed" />
+                      <SellForm id={row.id} itemType="sealed" availableQuantity={row.quantity} />
                     ) : (
                       <form action={removeSealedFromCollection} style={{ marginTop: 10 }}>
                         <input type="hidden" name="id" value={row.id} />

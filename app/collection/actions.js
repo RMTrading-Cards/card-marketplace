@@ -451,13 +451,46 @@ export async function sellCardItem(formData) {
   const supabase = await createClient()
   const id = formData.get("id")
   const soldPrice = Number(formData.get("sold_price"))
+  const soldQuantity = Number(formData.get("sold_quantity")) || 1
   if (isNaN(soldPrice)) throw new Error("Invalid sold price")
 
-  const { error } = await supabase
+  const { data: current, error: findError } = await supabase
     .from("user_cards")
-    .update({ sold_price: soldPrice, sold_at: new Date().toISOString() })
+    .select("*")
     .eq("id", id)
-  if (error) throw new Error(error.message)
+    .single()
+  if (findError) throw new Error(findError.message)
+
+  const qtyToSell = Math.min(soldQuantity, current.quantity)
+
+  if (qtyToSell >= current.quantity) {
+    const { error } = await supabase
+      .from("user_cards")
+      .update({ sold_price: soldPrice, sold_at: new Date().toISOString() })
+      .eq("id", id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error: insertError } = await supabase.from("user_cards").insert({
+      user_id: current.user_id,
+      card_id: current.card_id,
+      quantity: qtyToSell,
+      purchase_price: current.purchase_price,
+      condition: current.condition,
+      variant: current.variant,
+      collection_id: current.collection_id,
+      created_at: current.created_at,
+      sold_price: soldPrice,
+      sold_at: new Date().toISOString(),
+    })
+    if (insertError) throw new Error(insertError.message)
+
+    const { error: updateError } = await supabase
+      .from("user_cards")
+      .update({ quantity: current.quantity - qtyToSell })
+      .eq("id", id)
+    if (updateError) throw new Error(updateError.message)
+  }
+
   revalidatePath("/collection")
 }
 
@@ -465,13 +498,50 @@ export async function sellSealedItem(formData) {
   const supabase = await createClient()
   const id = formData.get("id")
   const soldPrice = Number(formData.get("sold_price"))
+  const soldQuantity = Number(formData.get("sold_quantity")) || 1
   if (isNaN(soldPrice)) throw new Error("Invalid sold price")
 
-  const { error } = await supabase
+  const { data: current, error: findError } = await supabase
     .from("user_sealed_items")
-    .update({ sold_price: soldPrice, sold_at: new Date().toISOString() })
+    .select("*")
     .eq("id", id)
-  if (error) throw new Error(error.message)
+    .single()
+  if (findError) throw new Error(findError.message)
+
+  const qtyToSell = Math.min(soldQuantity, current.quantity)
+
+  if (qtyToSell >= current.quantity) {
+    const { error } = await supabase
+      .from("user_sealed_items")
+      .update({ sold_price: soldPrice, sold_at: new Date().toISOString() })
+      .eq("id", id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error: insertError } = await supabase.from("user_sealed_items").insert({
+      user_id: current.user_id,
+      product_id: current.product_id,
+      tcgplayer_id: current.tcgplayer_id,
+      name: current.name,
+      set_name: current.set_name,
+      product_type: current.product_type,
+      image_url: current.image_url,
+      market_price: current.market_price,
+      quantity: qtyToSell,
+      purchase_price: current.purchase_price,
+      collection_id: current.collection_id,
+      created_at: current.created_at,
+      sold_price: soldPrice,
+      sold_at: new Date().toISOString(),
+    })
+    if (insertError) throw new Error(insertError.message)
+
+    const { error: updateError } = await supabase
+      .from("user_sealed_items")
+      .update({ quantity: current.quantity - qtyToSell })
+      .eq("id", id)
+    if (updateError) throw new Error(updateError.message)
+  }
+
   revalidatePath("/collection")
 }
 
