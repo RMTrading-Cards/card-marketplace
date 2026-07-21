@@ -14,7 +14,7 @@ export default async function Collection() {
   const { data: myCards } = await supabase
     .from("user_cards")
     .select(
-      "id, quantity, purchase_price, condition, collection_id, manual_price, variant, created_at, sold_price, sold_at, cards(name, image_small, tcgplayer_market_price, set_name, card_number, set_total, release_year, rarity, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil)"
+      "id, quantity, purchase_price, condition, collection_id, manual_price, variant, created_at, sold_price, sold_at, cards(name, image_small, tcgplayer_market_price, set_name, card_number, set_total, release_year, rarity, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region)"
     )
     .eq("user_id", user!.id)
     .order("created_at", { ascending: false })

@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useState, useMemo, useEffect } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import AddCardsSearch from "./AddCardsSearch"
@@ -9,6 +9,7 @@ import {
   removeSealedFromCollection,
   setManualPrice,
   updateItemQuantity,
+  updateItemCondition,
   updateItemPurchasePrice,
   sellCardItem,
   sellSealedItem,
@@ -18,6 +19,7 @@ import {
 
 const EBAY_FVF_RATE = 0.1325
 const EBAY_PER_ORDER_FEE = 0.40
+const CONDITIONS = ["NM", "LP", "MP", "HP", "DMG"]
 
 function ebayPayout(value) {
   if (value == null) return null
@@ -49,6 +51,16 @@ function getVariantPrice(card, variant) {
     case "1st Edition Holofoil": return card.price_1st_edition_holofoil
     default: return card.tcgplayer_market_price
   }
+}
+
+function getConditionPrice(card, variant, condition) {
+  if (!card?.raw_skus) return getVariantPrice(card, variant)
+  const wantLang = card.region === "JP" ? "JP" : "EN"
+  const rows = Object.values(card.raw_skus)
+  const matches = rows.filter((r) => r.var === variant && r.cnd === condition)
+  const best = matches.find((r) => r.lng === wantLang) || matches[0]
+  if (best?.mkt != null) return best.mkt
+  return getVariantPrice(card, variant)
 }
 
 function ThresholdRow({ label, value, purchasePrice }) {
@@ -193,6 +205,48 @@ function AskPriceInput({ id, itemType, currentValue }) {
     >
       Ask Price: {currentValue != null ? formatPrice(currentValue) : "Not set (click to set)"}
     </div>
+  )
+}
+
+function ConditionEditor({ id, condition }) {
+  const router = useRouter()
+  const [value, setValue] = useState(condition)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    setValue(condition)
+  }, [condition])
+
+  async function handleChange(e) {
+    const newCondition = e.target.value
+    setValue(newCondition)
+    setSubmitting(true)
+    const formData = new FormData()
+    formData.set("id", id)
+    formData.set("condition", newCondition)
+    await updateItemCondition(formData)
+    setSubmitting(false)
+    router.refresh()
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={handleChange}
+      disabled={submitting}
+      style={{
+        backgroundColor: "#0d0d0d",
+        border: "1px solid #2a2a2a",
+        color: "#ffffff",
+        borderRadius: 6,
+        padding: "2px 6px",
+        fontSize: 16,
+      }}
+    >
+      {CONDITIONS.map((c) => (
+        <option key={c} value={c}>{c}</option>
+      ))}
+    </select>
   )
 }
 
@@ -406,16 +460,8 @@ const cardBox = {
   gap: 12,
   flexWrap: "wrap",
 }
-const imageCol = {
-  flex: "1 1 40%",
-  maxWidth: 200,
-  minWidth: 110,
-}
-const infoCol = {
-  flex: "1 1 50%",
-  minWidth: 150,
-  color: "#ffffff",
-}
+const imageCol = { flex: "1 1 40%", maxWidth: 200, minWidth: 110 }
+const infoCol = { flex: "1 1 50%", minWidth: 150, color: "#ffffff" }
 
 const tabButtonBase = {
   padding: "8px 20px",
@@ -481,19 +527,15 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   function setTab(newTab) {
     updateParam("tab", newTab === "collection" ? null : newTab)
   }
-
   function setQuery(newQuery) {
     updateParam("q", newQuery)
   }
-
   function setTypeFilter(newType) {
     updateParam("type", newType === "all" ? null : newType)
   }
-
   function setSortBy(newSort) {
     updateParam("sort", newSort === "date_desc" ? null : newSort)
   }
-
   function toggleSellingMode() {
     updateParam("selling", sellingMode ? null : "1")
   }
@@ -505,7 +547,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       name: item.cards?.name || "",
       subLabel: item.cards?.set_name,
       image: item.cards?.image_small,
-      market: getVariantPrice(item.cards, item.variant),
+      market: getConditionPrice(item.cards, item.variant, item.condition),
       manualPrice: item.manual_price,
       quantity: item.quantity,
       purchasePrice: item.purchase_price,
@@ -552,10 +594,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
     const groups = {}
     for (const row of soldInCollection) {
       if (row.soldPrice == null) continue
-      const key =
-        row.kind === "card"
-          ? `card-${row.cardMeta?.id}-${row.variant || "Standard"}`
-          : `sealed-${row.name}`
+      const key = row.kind === "card" ? `card-${row.cardMeta?.id}-${row.variant || "Standard"}` : `sealed-${row.name}`
       if (!groups[key]) groups[key] = { totalRevenue: 0, totalQty: 0, count: 0 }
       groups[key].totalRevenue += row.soldPrice * row.quantity
       groups[key].totalQty += row.quantity
@@ -570,12 +609,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   }, [soldInCollection])
 
   const filteredSold = useMemo(() => {
-    let list = soldInCollection.filter((row) =>
-      row.name.toLowerCase().includes(soldQuery.toLowerCase())
-    )
-    if (soldTypeFilter !== "all") {
-      list = list.filter((row) => row.kind === soldTypeFilter)
-    }
+    let list = soldInCollection.filter((row) => row.name.toLowerCase().includes(soldQuery.toLowerCase()))
+    if (soldTypeFilter !== "all") list = list.filter((row) => row.kind === soldTypeFilter)
     list.sort((a, b) => {
       const marginA = marginPercent(a.soldPrice, a.purchasePrice) ?? -Infinity
       const marginB = marginPercent(b.soldPrice, b.purchasePrice) ?? -Infinity
@@ -605,20 +640,14 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   const actualProfit = useMemo(() => {
     let total = 0
     for (const row of soldInCollection) {
-      if (row.soldPrice != null && row.purchasePrice != null) {
-        total += (row.soldPrice - row.purchasePrice) * row.quantity
-      }
+      if (row.soldPrice != null && row.purchasePrice != null) total += (row.soldPrice - row.purchasePrice) * row.quantity
     }
     return total
   }, [soldInCollection])
 
   const filtered = useMemo(() => {
-    let list = activeInCollection.filter((row) =>
-      row.name.toLowerCase().includes(query.toLowerCase())
-    )
-    if (typeFilter !== "all") {
-      list = list.filter((row) => row.kind === typeFilter)
-    }
+    let list = activeInCollection.filter((row) => row.name.toLowerCase().includes(query.toLowerCase()))
+    if (typeFilter !== "all") list = list.filter((row) => row.kind === typeFilter)
     list.sort((a, b) => {
       const effA = a.market ?? a.manualPrice ?? -1
       const effB = b.market ?? b.manualPrice ?? -1
@@ -664,18 +693,10 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       `}</style>
 
       <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
-        <button className={`rmt-tab${tab === "collection" ? " rmt-tab-active" : ""}`} onClick={() => setTab("collection")} style={tabButtonBase}>
-          Collection
-        </button>
-        <button className={`rmt-tab${tab === "sold" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sold")} style={tabButtonBase}>
-          Sold History
-        </button>
-        <button className={`rmt-tab${tab === "cards" ? " rmt-tab-active" : ""}`} onClick={() => setTab("cards")} style={tabButtonBase}>
-          Add Cards
-        </button>
-        <button className={`rmt-tab${tab === "sealed" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sealed")} style={tabButtonBase}>
-          Add Sealed
-        </button>
+        <button className={`rmt-tab${tab === "collection" ? " rmt-tab-active" : ""}`} onClick={() => setTab("collection")} style={tabButtonBase}>Collection</button>
+        <button className={`rmt-tab${tab === "sold" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sold")} style={tabButtonBase}>Sold History</button>
+        <button className={`rmt-tab${tab === "cards" ? " rmt-tab-active" : ""}`} onClick={() => setTab("cards")} style={tabButtonBase}>Add Cards</button>
+        <button className={`rmt-tab${tab === "sealed" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sealed")} style={tabButtonBase}>Add Sealed</button>
       </div>
 
       {tab === "collection" && (
@@ -734,16 +755,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             {sellingMode && <span style={{ color: "#F2B705", fontSize: 14, marginLeft: 8 }}>· Selling Mode</span>}
           </h2>
 
-          <div
-            style={{
-              display: "grid",
-              gap: 16,
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-            }}
-          >
-            {filtered.length === 0 && (
-              <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No items found.</p>
-            )}
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+            {filtered.length === 0 && <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No items found.</p>}
 
             {filtered.map((row) => {
               const held = daysBetween(row.createdAt, null)
@@ -758,13 +771,9 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                 return (
                   <div key={`card-${row.id}`} style={cardBox}>
                     <div style={imageCol}>
-                      {row.image && (
-                        <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />
-                      )}
+                      {row.image && <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />}
                       {held != null && (
-                        <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>
-                          Held for: {held} day(s)
-                        </div>
+                        <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>Held for: {held} day(s)</div>
                       )}
                     </div>
                     <div style={infoCol}>
@@ -779,12 +788,14 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       </span>
                       {card?.rarity && (
                         <div style={{ color: "#F2B705", fontSize: 12, marginTop: 2 }}>
-                          {card.rarity} · {row.variant || "Standard"}
+                          {card.rarity} · {row.variant || "Standard"}{card?.region === "JP" ? " · JP" : ""}
                         </div>
                       )}
                       <div style={{ fontSize: 13, marginTop: 6, marginBottom: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <QuantityEditor id={row.id} itemType="card" quantity={row.quantity} />
-                        <span>· Condition: {row.condition} ·</span>
+                        <span>· Condition:</span>
+                        <ConditionEditor id={row.id} condition={row.condition} />
+                        <span>·</span>
                         <EditablePaid id={row.id} itemType="card" purchasePrice={purchasePrice} />
                       </div>
 
@@ -795,7 +806,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           <ThresholdRow label="85%" value={market * 0.85} purchasePrice={purchasePrice} />
                           <ThresholdRow label="90%" value={market * 0.9} purchasePrice={purchasePrice} />
                           <ThresholdRow label="95%" value={market * 0.95} purchasePrice={purchasePrice} />
-                          <ThresholdRow label="Market" value={market} purchasePrice={purchasePrice} />
+                          <ThresholdRow label={`Market (${row.condition})`} value={market} purchasePrice={purchasePrice} />
                           <ThresholdRow label="eBay Payout (~87%)" value={payout} purchasePrice={purchasePrice} />
                         </div>
                       ) : (
@@ -823,22 +834,15 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               }
 
               const effectiveMarket = row.market ?? row.manualPrice
-              const diff =
-                effectiveMarket != null && row.purchasePrice != null
-                  ? effectiveMarket - row.purchasePrice
-                  : null
+              const diff = effectiveMarket != null && row.purchasePrice != null ? effectiveMarket - row.purchasePrice : null
               const payout = ebayPayout(effectiveMarket)
 
               return (
                 <div key={`sealed-${row.id}`} style={cardBox}>
                   <div style={imageCol}>
-                    {row.image && (
-                      <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />
-                    )}
+                    {row.image && <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />}
                     {held != null && (
-                      <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>
-                        Held for: {held} day(s)
-                      </div>
+                      <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>Held for: {held} day(s)</div>
                     )}
                   </div>
                   <div style={infoCol}>
@@ -852,13 +856,9 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     </div>
                     <MarginLine value={effectiveMarket} purchasePrice={row.purchasePrice} />
                     {payout != null && (
-                      <div style={{ fontSize: 12, color: "#d1d5db", marginTop: 2 }}>
-                        eBay Payout (~87%): {formatPrice(payout)}
-                      </div>
+                      <div style={{ fontSize: 12, color: "#d1d5db", marginTop: 2 }}>eBay Payout (~87%): {formatPrice(payout)}</div>
                     )}
-                    {row.market == null && (
-                      <ManualPriceInput id={row.id} itemType="sealed" currentValue={row.manualPrice} />
-                    )}
+                    {row.market == null && <ManualPriceInput id={row.id} itemType="sealed" currentValue={row.manualPrice} />}
                     <AskPriceInput id={row.id} itemType="sealed" currentValue={row.manualPrice} />
                     {sellingMode ? (
                       <SellForm id={row.id} itemType="sealed" availableQuantity={row.quantity} />
@@ -916,40 +916,22 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             Sold History — {selectedNames || "Collection"} ({filteredSold.length})
           </h2>
 
-          <div
-            style={{
-              display: "grid",
-              gap: 16,
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-            }}
-          >
-            {filteredSold.length === 0 && (
-              <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No sold items found.</p>
-            )}
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+            {filteredSold.length === 0 && <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No sold items found.</p>}
 
             {filteredSold.map((row) => {
               const held = daysBetween(row.createdAt, row.soldAt)
-              const profit =
-                row.soldPrice != null && row.purchasePrice != null
-                  ? (row.soldPrice - row.purchasePrice) * row.quantity
-                  : null
+              const profit = row.soldPrice != null && row.purchasePrice != null ? (row.soldPrice - row.purchasePrice) * row.quantity : null
               const name = row.kind === "card" ? row.cardMeta?.name : row.name
-              const avgKey =
-                row.kind === "card"
-                  ? `card-${row.cardMeta?.id}-${row.variant || "Standard"}`
-                  : `sealed-${row.name}`
+              const avgKey = row.kind === "card" ? `card-${row.cardMeta?.id}-${row.variant || "Standard"}` : `sealed-${row.name}`
               const avgInfo = soldAverages[avgKey]
 
               return (
                 <div key={`sold-${row.kind}-${row.id}`} style={cardBox}>
                   <div style={imageCol}>
-                    {row.image && (
-                      <img src={row.image} alt={name} style={{ width: "100%", borderRadius: 6 }} />
-                    )}
+                    {row.image && <img src={row.image} alt={name} style={{ width: "100%", borderRadius: 6 }} />}
                     {held != null && (
-                      <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>
-                        Held for: {held} day(s)
-                      </div>
+                      <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>Held for: {held} day(s)</div>
                     )}
                   </div>
                   <div style={infoCol}>
@@ -987,12 +969,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
         </div>
       )}
 
-      {tab === "cards" && (
-        <AddCardsSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />
-      )}
-      {tab === "sealed" && (
-        <AddSealedSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />
-      )}
+      {tab === "cards" && <AddCardsSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
+      {tab === "sealed" && <AddSealedSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
     </div>
   )
 }

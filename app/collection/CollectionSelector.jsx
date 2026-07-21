@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createCollection, renameCollection, deleteCollection, setMainCollection, getOrCreateShareSlug } from "./actions"
@@ -8,13 +8,15 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
   const [pickerOpen, setPickerOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [renamingId, setRenamingId] = useState(null)
-  const [shareOpenId, setShareOpenId] = useState(null)
+  const [sharePanelOpen, setSharePanelOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState("")
   const [shareLoading, setShareLoading] = useState(false)
   const router = useRouter()
 
   const allIds = collections.map((c) => c.id)
   const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.includes(id))
+  const singleSelectedCollection =
+    selectedIds.length === 1 ? collections.find((c) => c.id === selectedIds[0]) : null
 
   function toggleAll() {
     onSelectionChange(allSelected ? [collections.find((c) => c.is_main)?.id].filter(Boolean) : allIds)
@@ -27,6 +29,7 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
     } else {
       onSelectionChange([...selectedIds, id])
     }
+    setSharePanelOpen(false)
   }
 
   function pickerLabel() {
@@ -74,17 +77,18 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
     router.refresh()
   }
 
-  async function handleShare(id) {
-    if (shareOpenId === id) {
-      setShareOpenId(null)
+  async function handleGetShareLink() {
+    if (!singleSelectedCollection) return
+    if (sharePanelOpen) {
+      setSharePanelOpen(false)
       return
     }
     setShareLoading(true)
     const formData = new FormData()
-    formData.set("id", id)
+    formData.set("id", singleSelectedCollection.id)
     const slug = await getOrCreateShareSlug(formData)
     setShareUrl(`${window.location.origin}/share/${slug}`)
-    setShareOpenId(id)
+    setSharePanelOpen(true)
     setShareLoading(false)
   }
 
@@ -135,11 +139,7 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
               <div style={{ borderTop: "1px solid #222", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
                 {collections.map((c) => (
                   <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, color: "#ffffff", fontSize: 14, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(c.id)}
-                      onChange={() => toggleOne(c.id)}
-                    />
+                    <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleOne(c.id)} />
                     {c.name}{c.is_main ? " (Main)" : ""}
                   </label>
                 ))}
@@ -151,15 +151,7 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
         <button
           onClick={() => setManaging(!managing)}
           className="rmt-tab"
-          style={{
-            backgroundColor: "#141414",
-            border: "1px solid #2a2a2a",
-            color: "#ffffff",
-            borderRadius: 8,
-            padding: "10px 14px",
-            fontSize: 14,
-            cursor: "pointer",
-          }}
+          style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 8, padding: "10px 14px", fontSize: 14, cursor: "pointer" }}
         >
           Manage Collections
         </button>
@@ -167,142 +159,86 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
         <button
           onClick={onToggleSelling}
           className={`rmt-tab${sellingMode ? " rmt-tab-active" : ""}`}
-          style={{
-            backgroundColor: "#141414",
-            border: "1px solid #2a2a2a",
-            color: "#ffffff",
-            borderRadius: 8,
-            padding: "10px 14px",
-            fontSize: 14,
-            cursor: "pointer",
-          }}
+          style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 8, padding: "10px 14px", fontSize: 14, cursor: "pointer" }}
         >
           Selling
         </button>
+
+        {singleSelectedCollection && (
+          <button
+            onClick={handleGetShareLink}
+            className="rmt-tab"
+            style={{ backgroundColor: "#141414", border: "1px solid #F2B705", color: "#F2B705", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+          >
+            {shareLoading ? "Loading..." : "🔗 Share This Collection"}
+          </button>
+        )}
       </div>
 
-      {managing && (
-        <div
-          style={{
-            marginTop: 12,
-            backgroundColor: "#141414",
-            border: "1px solid #2a2a2a",
-            borderRadius: 8,
-            padding: 16,
-            maxWidth: 420,
-          }}
-        >
-          {collections.map((c) => (
-            <div
-              key={c.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 10,
-                paddingBottom: 10,
-                borderBottom: "1px solid #222",
-                flexWrap: "wrap",
-              }}
+      {sharePanelOpen && singleSelectedCollection && (
+        <div style={{ marginTop: 12, backgroundColor: "#141414", border: "1px solid #F2B705", borderRadius: 8, padding: 16, maxWidth: 480 }}>
+          <div style={{ color: "#ffffff", fontWeight: 700, marginBottom: 4 }}>
+            Sharing: {singleSelectedCollection.name}
+          </div>
+          <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 12 }}>
+            Anyone with this link or QR code can view this collection's cards and your asking prices — no account needed. Great for showing customers what you have for sale.
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+            <input
+              readOnly
+              value={shareUrl}
+              onFocus={(e) => e.target.select()}
+              style={{ flex: 1, minWidth: 200, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 6, padding: "8px 10px", fontSize: 13 }}
+            />
+            <button
+              onClick={copyShareUrl}
+              className="rmt-btn"
+              style={{ backgroundColor: "#F2B705", color: "#000", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
             >
+              Copy Link
+            </button>
+          </div>
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareUrl)}`}
+            alt="QR code"
+            style={{ borderRadius: 6, backgroundColor: "#ffffff", padding: 8 }}
+          />
+        </div>
+      )}
+
+      {managing && (
+        <div style={{ marginTop: 12, backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 16, maxWidth: 420 }}>
+          {collections.map((c) => (
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid #222", flexWrap: "wrap" }}>
               {renamingId === c.id ? (
                 <form onSubmit={(e) => handleRename(e, c.id)} style={{ display: "flex", gap: 6, flex: 1 }}>
                   <input
                     name="name"
                     defaultValue={c.name}
                     autoFocus
-                    style={{
-                      flex: 1,
-                      backgroundColor: "#0d0d0d",
-                      border: "1px solid #2a2a2a",
-                      color: "#ffffff",
-                      borderRadius: 6,
-                      padding: "6px 8px",
-                      fontSize: 16,
-                    }}
+                    style={{ flex: 1, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 6, padding: "6px 8px", fontSize: 16 }}
                   />
-                  <button
-                    type="submit"
-                    className="rmt-btn"
-                    style={{ backgroundColor: "#F2B705", color: "#000", border: "none", borderRadius: 6, padding: "6px 10px", fontSize: 13, cursor: "pointer" }}
-                  >
+                  <button type="submit" className="rmt-btn" style={{ backgroundColor: "#F2B705", color: "#000", border: "none", borderRadius: 6, padding: "6px 10px", fontSize: 13, cursor: "pointer" }}>
                     Save
                   </button>
                 </form>
               ) : (
                 <>
-                  <span style={{ flex: 1, color: "#ffffff", fontSize: 14 }}>
-                    {c.name}{c.is_main ? " (Main)" : ""}
-                  </span>
-                  <button
-                    onClick={() => setRenamingId(c.id)}
-                    className="rmt-tab"
-                    style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#fff", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}
-                  >
+                  <span style={{ flex: 1, color: "#ffffff", fontSize: 14 }}>{c.name}{c.is_main ? " (Main)" : ""}</span>
+                  <button onClick={() => setRenamingId(c.id)} className="rmt-tab" style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#fff", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}>
                     Rename
                   </button>
-                  <button
-                    onClick={() => handleShare(c.id)}
-                    className="rmt-tab"
-                    style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}
-                  >
-                    {shareLoading && shareOpenId !== c.id ? "..." : "Share"}
-                  </button>
                   {!c.is_main && (
-                    <button
-                      onClick={() => handleSetMain(c.id)}
-                      className="rmt-tab"
-                      style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#fff", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}
-                    >
+                    <button onClick={() => handleSetMain(c.id)} className="rmt-tab" style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#fff", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}>
                       Set Main
                     </button>
                   )}
                   {!c.is_main && (
-                    <button
-                      onClick={() => handleDelete(c.id)}
-                      className="rmt-remove-btn"
-                      style={{ backgroundColor: "#2a1414", color: "#f87171", border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}
-                    >
+                    <button onClick={() => handleDelete(c.id)} className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}>
                       Delete
                     </button>
                   )}
                 </>
-              )}
-              {shareOpenId === c.id && (
-                <div style={{ width: "100%", marginTop: 8, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12 }}>
-                  <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 8 }}>
-                    Anyone with this link can view this collection's cards and your asking prices — no account needed.
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-                    <input
-                      readOnly
-                      value={shareUrl}
-                      onFocus={(e) => e.target.select()}
-                      style={{
-                        flex: 1,
-                        minWidth: 200,
-                        backgroundColor: "#141414",
-                        border: "1px solid #2a2a2a",
-                        color: "#ffffff",
-                        borderRadius: 6,
-                        padding: "6px 8px",
-                        fontSize: 13,
-                      }}
-                    />
-                    <button
-                      onClick={copyShareUrl}
-                      className="rmt-btn"
-                      style={{ backgroundColor: "#F2B705", color: "#000", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 13, cursor: "pointer" }}
-                    >
-                      Copy Link
-                    </button>
-                  </div>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shareUrl)}`}
-                    alt="QR code"
-                    style={{ borderRadius: 6, backgroundColor: "#ffffff", padding: 8 }}
-                  />
-                </div>
               )}
             </div>
           ))}
@@ -313,21 +249,9 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
                 name="name"
                 placeholder="New collection name"
                 autoFocus
-                style={{
-                  flex: 1,
-                  backgroundColor: "#0d0d0d",
-                  border: "1px solid #2a2a2a",
-                  color: "#ffffff",
-                  borderRadius: 6,
-                  padding: "6px 8px",
-                  fontSize: 16,
-                }}
+                style={{ flex: 1, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 6, padding: "6px 8px", fontSize: 16 }}
               />
-              <button
-                type="submit"
-                className="rmt-btn"
-                style={{ backgroundColor: "#F2B705", color: "#000", border: "none", borderRadius: 6, padding: "6px 10px", fontSize: 13, cursor: "pointer" }}
-              >
+              <button type="submit" className="rmt-btn" style={{ backgroundColor: "#F2B705", color: "#000", border: "none", borderRadius: 6, padding: "6px 10px", fontSize: 13, cursor: "pointer" }}>
                 Create
               </button>
             </form>
@@ -335,17 +259,7 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
             <button
               onClick={() => setCreating(true)}
               className="rmt-tab"
-              style={{
-                width: "100%",
-                marginTop: 8,
-                backgroundColor: "#0d0d0d",
-                border: "1px dashed #3a3a3a",
-                color: "#F2B705",
-                borderRadius: 6,
-                padding: "8px 10px",
-                fontSize: 14,
-                cursor: "pointer",
-              }}
+              style={{ width: "100%", marginTop: 8, backgroundColor: "#0d0d0d", border: "1px dashed #3a3a3a", color: "#F2B705", borderRadius: 6, padding: "8px 10px", fontSize: 14, cursor: "pointer" }}
             >
               + New Collection
             </button>

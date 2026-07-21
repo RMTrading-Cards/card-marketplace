@@ -20,7 +20,7 @@ export async function searchCards(query) {
 
   let q = supabase
     .from("cards")
-    .select("id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil")
+    .select("id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region")
 
   for (const token of tokens) {
     if (token.includes("/")) {
@@ -383,6 +383,16 @@ export async function setManualPrice(formData) {
   const table = itemType === "sealed" ? "user_sealed_items" : "user_cards"
 
   const { error } = await supabase.from(table).update({ manual_price: manualPrice }).eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function updateItemCondition(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const condition = formData.get("condition")
+
+  const { error } = await supabase.from("user_cards").update({ condition }).eq("id", id)
   if (error) throw new Error(error.message)
   revalidatePath("/collection")
 }
