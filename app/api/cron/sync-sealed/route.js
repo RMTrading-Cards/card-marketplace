@@ -1,10 +1,24 @@
-﻿import { createClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 
-export const maxDuration = 30
+export const maxDuration = 55
 
-const DAILY_CREDIT_BUDGET = 90
-const PAGE_SIZE = 90
+const DAILY_TIME_BUDGET_MS = 50000
+const BASE = "https://openapi.tcgtracking.com/v1"
+const CATEGORIES = [
+  { id: 3, region: "US" },
+  { id: 85, region: "JP" },
+]
+
+async function fetchJSON(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
 
 export async function GET(request) {
   const authHeader = request.headers.get("authorization")
@@ -17,70 +31,88 @@ export async function GET(request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   )
 
+  const allSets = []
+  for (const cat of CATEGORIES) {
+    const json = await fetchJSON(`${BASE}/${cat.id}/sets`)
+    if (json?.sets) {
+      for (const s of json.sets) {
+        allSets.push({ category: cat.id, region: cat.region, setId: s.id, setName: s.name })
+      }
+    }
+  }
+
+  if (allSets.length === 0) {
+    return NextResponse.json({ error: "Could not fetch set lists" }, { status: 500 })
+  }
+
   const { data: state } = await supabase
     .from("sync_state")
     .select("*")
-    .eq("id", "sealed_sync")
+    .eq("id", "sealed_sync_tcg")
     .single()
 
-  let offset = state?.last_set_index ?? 0
-  let creditsUsed = 0
+  let index = state?.last_set_index ?? 0
+  const startTime = Date.now()
+  const setsProcessed = []
   let totalSynced = 0
-  let totalCount = null
 
-  while (creditsUsed < DAILY_CREDIT_BUDGET) {
-    const res = await fetch(
-      `https://www.pokemonpricetracker.com/api/v2/sealed-products?minPrice=0&limit=${PAGE_SIZE}&offset=${offset}`,
-      { headers: { Authorization: `Bearer ${process.env.POKEMONPRICETRACKER_API_KEY}` } }
-    )
-
-    if (!res.ok) {
-      const body = await res.text()
-      return NextResponse.json({ error: "Fetch failed", status: res.status, body, offset }, { status: 500 })
-    }
-
-    const json = await res.json()
-    const products = json.data || []
-    totalCount = json.metadata?.total ?? totalCount
-
-    if (products.length === 0) {
-      offset = 0
+  while (Date.now() - startTime < DAILY_TIME_BUDGET_MS) {
+    if (index >= allSets.length) {
+      index = 0
       break
     }
+    const set = allSets[index]
 
-    const rows = products.map((p) => ({
-      id: p.id,
-      tcgplayer_id: p.tcgPlayerId,
-      name: p.name,
-      set_id: p.setId,
-      set_name: p.setName,
-      product_type: p.productType || null,
-      image_url: p.imageUrl,
-      market_price: p.unopenedPrice,
-      synced_at: new Date().toISOString(),
-    }))
+    const [sealedJson, pricingJson] = await Promise.all([
+      fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/sealed`),
+      fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/pricing`),
+    ])
 
-    await supabase.from("sealed_products").upsert(rows)
-    totalSynced += rows.length
+    const products = sealedJson?.products || []
+    if (products.length > 0) {
+      const prices = pricingJson?.prices || {}
 
-    creditsUsed += json.metadata?.apiCallsConsumed?.total ?? products.length
-    offset += PAGE_SIZE
+      const rows = products.map((p) => {
+        const tcg = prices[String(p.id)]?.tcg || {}
+        let market = null
+        for (const subtype of Object.keys(tcg)) {
+          if (tcg[subtype]?.market != null) {
+            market = tcg[subtype].market
+            break
+          }
+        }
+        return {
+          id: `tcg${set.category}-sealed-${p.id}`,
+          tcgplayer_id: String(p.id),
+          name: p.name,
+          set_id: String(set.setId),
+          set_name: p.set_name,
+          product_type: null,
+          image_url: p.image_url,
+          region: set.region,
+          tcgplayer_url: p.tcgplayer_url,
+          market_price: market,
+          synced_at: new Date().toISOString(),
+        }
+      })
 
-    if (!json.metadata?.hasMore) {
-      offset = 0
-      break
+      const { error } = await supabase.from("sealed_products").upsert(rows)
+      if (!error) totalSynced += rows.length
     }
+
+    setsProcessed.push(`${set.region}:${set.setName}`)
+    index++
   }
 
   await supabase
     .from("sync_state")
-    .update({ last_set_index: offset, last_run_at: new Date().toISOString() })
-    .eq("id", "sealed_sync")
+    .update({ last_set_index: index, last_run_at: new Date().toISOString() })
+    .eq("id", "sealed_sync_tcg")
 
   return NextResponse.json({
+    setsProcessed,
     productsSynced: totalSynced,
-    creditsUsed,
-    nextOffset: offset,
-    totalCount,
+    nextIndex: index,
+    totalSets: allSets.length,
   })
 }

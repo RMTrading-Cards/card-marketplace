@@ -1,67 +1,38 @@
-﻿import { createClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 
-export const maxDuration = 60
+export const maxDuration = 55
 
-const API_KEY = process.env.POKEMONTCG_API_KEY
+const DAILY_TIME_BUDGET_MS = 50000
+const BASE = "https://openapi.tcgtracking.com/v1"
+const CATEGORIES = [
+  { id: 3, region: "US" },
+  { id: 85, region: "JP" },
+]
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+async function fetchJSON(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
 }
 
-async function fetchJSON(url, retries = 3) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(url, { headers: { "X-Api-Key": API_KEY } })
-      if (!res.ok) {
-        await sleep(1000 * attempt)
-        continue
+function pickPrice(tcg, preferredKeys) {
+  if (!tcg) return null
+  for (const key of preferredKeys) {
+    for (const subtype of Object.keys(tcg)) {
+      if (subtype.toLowerCase() === key.toLowerCase() && tcg[subtype]?.market != null) {
+        return tcg[subtype].market
       }
-      const contentType = res.headers.get("content-type") || ""
-      if (!contentType.includes("application/json")) {
-        await sleep(1000 * attempt)
-        continue
-      }
-      return await res.json()
-    } catch (err) {
-      await sleep(1000 * attempt)
     }
   }
-  return null
-}
-
-function toRow(card) {
-  const prices = card.tcgplayer?.prices
-  const marketPrice =
-    prices?.holofoil?.market ??
-    prices?.normal?.market ??
-    prices?.reverseHolofoil?.market ??
-    null
-  const lowPrice = prices?.holofoil?.low ?? prices?.normal?.low ?? null
-
-  return {
-    id: card.id,
-    name: card.name,
-    set_name: card.set?.name,
-    set_id: card.set?.id,
-    card_number: card.number,
-    price_normal: card.tcgplayer?.prices?.normal?.market ?? null,
-    price_holofoil: card.tcgplayer?.prices?.holofoil?.market ?? null,
-    price_reverse_holofoil: card.tcgplayer?.prices?.reverseHolofoil?.market ?? null,
-    price_1st_edition_holofoil:
-      card.tcgplayer?.prices?.["1stEditionHolofoil"]?.market ??
-      card.tcgplayer?.prices?.["1stEdition"]?.market ?? null,
-    set_total: card.set?.printedTotal,
-    release_year: card.set?.releaseDate?.slice(0, 4),
-    rarity: card.rarity,
-    image_small: card.images?.small,
-    image_large: card.images?.large,
-    tcgplayer_market_price: marketPrice,
-    tcgplayer_low_price: lowPrice,
-    tcgplayer_updated_at: card.tcgplayer?.updatedAt ?? null,
-    raw_data: card,
-    synced_at: new Date().toISOString(),
+  for (const subtype of Object.keys(tcg)) {
+    if (tcg[subtype]?.market != null) return tcg[subtype].market
   }
+  return null
 }
 
 export async function GET(request) {
@@ -75,63 +46,98 @@ export async function GET(request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   )
 
-  const startTime = Date.now()
-  const TIME_BUDGET_MS = 50000
+  const allSets = []
+  for (const cat of CATEGORIES) {
+    const json = await fetchJSON(`${BASE}/${cat.id}/sets`)
+    if (json?.sets) {
+      for (const s of json.sets) {
+        allSets.push({
+          category: cat.id,
+          region: cat.region,
+          setId: s.id,
+          setName: s.name,
+          setAbbr: s.abbreviation,
+        })
+      }
+    }
+  }
+
+  if (allSets.length === 0) {
+    return NextResponse.json({ error: "Could not fetch set lists" }, { status: 500 })
+  }
 
   const { data: state } = await supabase
     .from("sync_state")
     .select("*")
-    .eq("id", "cards_sync")
+    .eq("id", "cards_sync_tcg")
     .single()
 
-  const setsJson = await fetchJSON("https://api.pokemontcg.io/v2/sets")
-  const sets = setsJson?.data ?? []
-
-  if (sets.length === 0) {
-    return NextResponse.json({ error: "Could not fetch sets list" }, { status: 500 })
-  }
-
   let index = state?.last_set_index ?? 0
+  const startTime = Date.now()
   const setsProcessed = []
+  let totalSynced = 0
 
-  while (Date.now() - startTime < TIME_BUDGET_MS) {
-    if (index >= sets.length) {
+  while (Date.now() - startTime < DAILY_TIME_BUDGET_MS) {
+    if (index >= allSets.length) {
       index = 0
       break
     }
+    const set = allSets[index]
 
-    const set = sets[index]
-    let page = 1
+    const [cardsJson, pricingJson, skusJson] = await Promise.all([
+      fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/cards`),
+      fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/pricing`),
+      fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/skus`),
+    ])
 
-    while (true) {
-      const result = await fetchJSON(
-        `https://api.pokemontcg.io/v2/cards?q=set.id:${set.id}&page=${page}&pageSize=250`
-      )
-      if (!result || !result.data || result.data.length === 0) break
+    const products = cardsJson?.products || []
+    if (products.length > 0) {
+      const prices = pricingJson?.prices || {}
+      const skuProducts = skusJson?.products || {}
 
-      const rows = result.data.map(toRow)
-      await supabase.from("cards").upsert(rows)
+      const rows = products.map((p) => {
+        const tcg = prices[String(p.id)]?.tcg || {}
+        return {
+          id: `tcg${set.category}-${p.id}`,
+          name: p.name,
+          set_name: p.set_name,
+          set_id: String(set.setId),
+          card_number: p.number,
+          set_total: products.length,
+          rarity: p.rarity,
+          image_small: p.image_url,
+          image_large: p.image_url,
+          region: set.region,
+          set_abbr: p.set_abbr || set.setAbbr,
+          tcgplayer_url: p.tcgplayer_url,
+          tcgplayer_market_price: pickPrice(tcg, ["Holofoil", "Normal", "Reverse Holofoil"]),
+          price_normal: tcg["Normal"]?.market ?? null,
+          price_holofoil: tcg["Holofoil"]?.market ?? null,
+          price_reverse_holofoil: tcg["Reverse Holofoil"]?.market ?? null,
+          price_1st_edition_holofoil:
+            tcg["1st Edition Holofoil"]?.market ?? tcg["1st Edition"]?.market ?? null,
+          raw_skus: skuProducts[String(p.id)] || null,
+          synced_at: new Date().toISOString(),
+        }
+      })
 
-      if (page * result.pageSize >= result.totalCount) break
-      page++
-
-      if (Date.now() - startTime > TIME_BUDGET_MS) break
+      const { error } = await supabase.from("cards").upsert(rows)
+      if (!error) totalSynced += rows.length
     }
 
-    setsProcessed.push(set.id)
+    setsProcessed.push(`${set.region}:${set.setName}`)
     index++
-
-    if (Date.now() - startTime > TIME_BUDGET_MS) break
   }
 
   await supabase
     .from("sync_state")
     .update({ last_set_index: index, last_run_at: new Date().toISOString() })
-    .eq("id", "cards_sync")
+    .eq("id", "cards_sync_tcg")
 
   return NextResponse.json({
     setsProcessed,
+    cardsSynced: totalSynced,
     nextIndex: index,
-    totalSets: sets.length,
+    totalSets: allSets.length,
   })
 }
