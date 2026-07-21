@@ -593,3 +593,29 @@ export async function removeSoldItem(formData) {
   if (error) throw new Error(error.message)
   revalidatePath("/collection")
 }
+
+export async function getOrCreateShareSlug(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+
+  const { data: existing, error: findError } = await supabase
+    .from("collections")
+    .select("share_slug")
+    .eq("id", id)
+    .single()
+  if (findError) throw new Error(findError.message)
+
+  if (existing.share_slug) return existing.share_slug
+
+  const slug = Array.from({ length: 12 }, () =>
+    "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]
+  ).join("")
+
+  const { error } = await supabase
+    .from("collections")
+    .update({ share_slug: slug })
+    .eq("id", id)
+  if (error) throw new Error(error.message)
+
+  return slug
+}

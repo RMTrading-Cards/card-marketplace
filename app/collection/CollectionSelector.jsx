@@ -1,13 +1,16 @@
 ﻿"use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createCollection, renameCollection, deleteCollection, setMainCollection } from "./actions"
+import { createCollection, renameCollection, deleteCollection, setMainCollection, getOrCreateShareSlug } from "./actions"
 
 export default function CollectionSelector({ collections, selectedIds, onSelectionChange, sellingMode, onToggleSelling }) {
   const [managing, setManaging] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [renamingId, setRenamingId] = useState(null)
+  const [shareOpenId, setShareOpenId] = useState(null)
+  const [shareUrl, setShareUrl] = useState("")
+  const [shareLoading, setShareLoading] = useState(false)
   const router = useRouter()
 
   const allIds = collections.map((c) => c.id)
@@ -69,6 +72,24 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
     formData.set("id", id)
     await setMainCollection(formData)
     router.refresh()
+  }
+
+  async function handleShare(id) {
+    if (shareOpenId === id) {
+      setShareOpenId(null)
+      return
+    }
+    setShareLoading(true)
+    const formData = new FormData()
+    formData.set("id", id)
+    const slug = await getOrCreateShareSlug(formData)
+    setShareUrl(`${window.location.origin}/share/${slug}`)
+    setShareOpenId(id)
+    setShareLoading(false)
+  }
+
+  function copyShareUrl() {
+    navigator.clipboard.writeText(shareUrl)
   }
 
   return (
@@ -181,6 +202,7 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
                 marginBottom: 10,
                 paddingBottom: 10,
                 borderBottom: "1px solid #222",
+                flexWrap: "wrap",
               }}
             >
               {renamingId === c.id ? (
@@ -219,6 +241,13 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
                   >
                     Rename
                   </button>
+                  <button
+                    onClick={() => handleShare(c.id)}
+                    className="rmt-tab"
+                    style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}
+                  >
+                    {shareLoading && shareOpenId !== c.id ? "..." : "Share"}
+                  </button>
                   {!c.is_main && (
                     <button
                       onClick={() => handleSetMain(c.id)}
@@ -238,6 +267,42 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
                     </button>
                   )}
                 </>
+              )}
+              {shareOpenId === c.id && (
+                <div style={{ width: "100%", marginTop: 8, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12 }}>
+                  <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 8 }}>
+                    Anyone with this link can view this collection's cards and your asking prices — no account needed.
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+                    <input
+                      readOnly
+                      value={shareUrl}
+                      onFocus={(e) => e.target.select()}
+                      style={{
+                        flex: 1,
+                        minWidth: 200,
+                        backgroundColor: "#141414",
+                        border: "1px solid #2a2a2a",
+                        color: "#ffffff",
+                        borderRadius: 6,
+                        padding: "6px 8px",
+                        fontSize: 13,
+                      }}
+                    />
+                    <button
+                      onClick={copyShareUrl}
+                      className="rmt-btn"
+                      style={{ backgroundColor: "#F2B705", color: "#000", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 13, cursor: "pointer" }}
+                    >
+                      Copy Link
+                    </button>
+                  </div>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shareUrl)}`}
+                    alt="QR code"
+                    style={{ borderRadius: 6, backgroundColor: "#ffffff", padding: 8 }}
+                  />
+                </div>
               )}
             </div>
           ))}

@@ -18,16 +18,10 @@ import {
 
 const EBAY_FVF_RATE = 0.1325
 const EBAY_PER_ORDER_FEE = 0.40
-const ESTIMATED_SHIP_COST = 4.50
 
 function ebayPayout(value) {
   if (value == null) return null
   return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
-}
-
-function ebayListPrice(targetNet) {
-  if (targetNet == null) return null
-  return (targetNet + EBAY_PER_ORDER_FEE + ESTIMATED_SHIP_COST) / (1 - EBAY_FVF_RATE)
 }
 
 function formatPrice(n) {
@@ -137,6 +131,68 @@ function ManualPriceInput({ id, itemType, currentValue }) {
         Save
       </button>
     </form>
+  )
+}
+
+function AskPriceInput({ id, itemType, currentValue }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(currentValue ?? "")
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setSubmitting(true)
+    const formData = new FormData()
+    formData.set("id", id)
+    formData.set("item_type", itemType)
+    formData.set("manual_price", value)
+    await setManualPrice(formData)
+    setSubmitting(false)
+    setEditing(false)
+    window.location.reload()
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap", maxWidth: "100%" }}>
+        <input
+          type="number"
+          step="0.01"
+          autoFocus
+          placeholder="Your ask price"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          style={{
+            backgroundColor: "#0d0d0d",
+            border: "1px solid #2a2a2a",
+            color: "#ffffff",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 16,
+            width: 140,
+            boxSizing: "border-box",
+          }}
+        />
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rmt-btn"
+          style={{ backgroundColor: "#F2B705", color: "#000", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 13, cursor: "pointer" }}
+        >
+          Save
+        </button>
+      </form>
+    )
+  }
+
+  return (
+    <div
+      onClick={() => setEditing(true)}
+      style={{ fontSize: 12, color: "#F2B705", marginTop: 6, cursor: "pointer", textDecoration: "underline dotted" }}
+      title="Click to set your asking price (shown on your public share link instead of market price)"
+    >
+      Ask Price: {currentValue != null ? formatPrice(currentValue) : "Not set (click to set)"}
+    </div>
   )
 }
 
@@ -742,22 +798,14 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           <ThresholdRow label="Market" value={market} purchasePrice={purchasePrice} />
                           <ThresholdRow label="eBay Payout (~87%)" value={payout} purchasePrice={purchasePrice} />
                         </div>
-                      ) : row.manualPrice != null ? (
-                        <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
-                          <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>Manually set value:</div>
-                          <ThresholdRow label="85%" value={row.manualPrice * 0.85} purchasePrice={purchasePrice} />
-                          <ThresholdRow label="90%" value={row.manualPrice * 0.9} purchasePrice={purchasePrice} />
-                          <ThresholdRow label="95%" value={row.manualPrice * 0.95} purchasePrice={purchasePrice} />
-                          <ThresholdRow label="Market (manual)" value={row.manualPrice} purchasePrice={purchasePrice} />
-                          <ThresholdRow label="eBay Payout (~87%)" value={payout} purchasePrice={purchasePrice} />
-                          <ManualPriceInput id={row.id} itemType="card" currentValue={row.manualPrice} />
-                        </div>
                       ) : (
                         <div>
                           <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 4 }}>Market: N/A</div>
-                          <ManualPriceInput id={row.id} itemType="card" currentValue={null} />
+                          <ManualPriceInput id={row.id} itemType="card" currentValue={row.manualPrice} />
                         </div>
                       )}
+
+                      <AskPriceInput id={row.id} itemType="card" currentValue={row.manualPrice} />
 
                       {sellingMode ? (
                         <SellForm id={row.id} itemType="card" availableQuantity={row.quantity} />
@@ -811,6 +859,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     {row.market == null && (
                       <ManualPriceInput id={row.id} itemType="sealed" currentValue={row.manualPrice} />
                     )}
+                    <AskPriceInput id={row.id} itemType="sealed" currentValue={row.manualPrice} />
                     {sellingMode ? (
                       <SellForm id={row.id} itemType="sealed" availableQuantity={row.quantity} />
                     ) : (
