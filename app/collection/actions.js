@@ -35,7 +35,7 @@ export async function searchCards(query) {
     }
   }
 
-  const { data, error } = await q.order("name").limit(20)
+  const { data, error } = await q.order("name").limit(60)
   if (error) {
     console.error(error)
     return []
@@ -52,7 +52,7 @@ export async function searchSealedProducts(query) {
     .select("*")
     .or(`name.ilike.%${query}%,set_name.ilike.%${query}%`)
     .order("name")
-    .limit(20)
+    .limit(60)
 
   if (error) {
     console.error(error)
