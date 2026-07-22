@@ -1,5 +1,5 @@
 "use client"
-import { useState, useTransition, useMemo } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { searchSealedProducts, addSealedToCollection } from "./actions"
 
@@ -35,6 +35,14 @@ const inputStyle = {
   padding: "6px 8px",
   fontSize: 16,
   boxSizing: "border-box",
+}
+const controlStyle = {
+  backgroundColor: "#141414",
+  border: "1px solid #2a2a2a",
+  color: "#ffffff",
+  borderRadius: 8,
+  padding: "0 12px",
+  fontSize: 16,
 }
 
 function SealedResult({ product, onAdded, collectionId }) {
@@ -138,39 +146,57 @@ function SealedResult({ product, onAdded, collectionId }) {
 export default function AddSealedSearch({ onAdded, collectionId }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
   const [isPending, startTransition] = useTransition()
   const [sortBy, setSortBy] = useState("name")
+  const [pageSize, setPageSize] = useState(20)
+  const [page, setPage] = useState(1)
+
+  function runSearch(value, sort, pg, size) {
+    startTransition(async () => {
+      const response = await searchSealedProducts(value, sort, pg, size)
+      setResults(response?.results || [])
+      setTotalCount(response?.totalCount || 0)
+    })
+  }
 
   function handleChange(e) {
     const value = e.target.value
     setQuery(value)
-    startTransition(async () => {
-      const data = await searchSealedProducts(value)
-      setResults(data || [])
-    })
+    setPage(1)
+    runSearch(value, sortBy, 1, pageSize)
+  }
+
+  function handleSortChange(newSort) {
+    setSortBy(newSort)
+    setPage(1)
+    if (query.length >= 2) runSearch(query, newSort, 1, pageSize)
+  }
+
+  function handlePageSizeChange(newSize) {
+    setPageSize(newSize)
+    setPage(1)
+    if (query.length >= 2) runSearch(query, sortBy, 1, newSize)
+  }
+
+  function goToPage(newPage) {
+    setPage(newPage)
+    runSearch(query, sortBy, newPage, pageSize)
   }
 
   function handleAdded() {
     setQuery("")
     setResults([])
+    setTotalCount(0)
+    setPage(1)
     onAdded()
   }
 
-  const sortedResults = useMemo(() => {
-    const list = [...results]
-    if (sortBy === "name") {
-      list.sort((a, b) => a.name.localeCompare(b.name))
-    } else if (sortBy === "price_desc") {
-      list.sort((a, b) => (b.unopenedPrice ?? -1) - (a.unopenedPrice ?? -1))
-    } else if (sortBy === "price_asc") {
-      list.sort((a, b) => (a.unopenedPrice ?? Infinity) - (b.unopenedPrice ?? Infinity))
-    }
-    return list
-  }, [results, sortBy])
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, maxWidth: 576, marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, maxWidth: 700, marginBottom: 16, flexWrap: "wrap" }}>
         <input
           type="text"
           placeholder="Search booster boxes, ETBs, etc..."
@@ -188,35 +214,60 @@ export default function AddSealedSearch({ onAdded, collectionId }) {
             boxSizing: "border-box",
           }}
         />
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          style={{
-            backgroundColor: "#141414",
-            border: "1px solid #2a2a2a",
-            color: "#ffffff",
-            borderRadius: 8,
-            padding: "0 12px",
-            fontSize: 16,
-          }}
-        >
+        <select value={sortBy} onChange={(e) => handleSortChange(e.target.value)} style={controlStyle}>
           <option value="name">Name A → Z</option>
           <option value="price_desc">Price High → Low</option>
           <option value="price_asc">Price Low → High</option>
         </select>
+        <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} style={controlStyle}>
+          <option value={20}>Show 20</option>
+          <option value={50}>Show 50</option>
+          <option value={100}>Show 100</option>
+        </select>
       </div>
+
       {isPending && <p style={{ color: "#ffffff", marginBottom: 16 }}>Searching...</p>}
+
+      {!isPending && query.length >= 2 && (
+        <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>
+          {totalCount} result{totalCount === 1 ? "" : "s"} found
+        </p>
+      )}
+
       <div
         style={{
           display: "grid",
           gap: 16,
           gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+          marginBottom: 16,
         }}
       >
-        {sortedResults.map((product) => (
+        {results.map((product) => (
           <SealedResult key={product.id} product={product} onAdded={handleAdded} collectionId={collectionId} />
         ))}
       </div>
+
+      {totalCount > pageSize && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
+          <button
+            onClick={() => goToPage(page - 1)}
+            disabled={page <= 1}
+            className="rmt-tab"
+            style={{ ...controlStyle, padding: "8px 14px", cursor: page <= 1 ? "default" : "pointer", opacity: page <= 1 ? 0.5 : 1 }}
+          >
+            ← Prev
+          </button>
+          <span style={{ color: "#9ca3af", fontSize: 14 }}>Page {page} of {totalPages}</span>
+          <button
+            onClick={() => goToPage(page + 1)}
+            disabled={page >= totalPages}
+            className="rmt-tab"
+            style={{ ...controlStyle, padding: "8px 14px", cursor: page >= totalPages ? "default" : "pointer", opacity: page >= totalPages ? 0.5 : 1 }}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   )
 }
