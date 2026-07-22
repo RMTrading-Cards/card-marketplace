@@ -272,11 +272,22 @@ export async function getOrCreateProfile() {
     .eq("id", user.id)
     .maybeSingle()
 
-  if (existing) return existing
+  if (existing) {
+    if (existing.email !== user.email) {
+      const { data: updated } = await supabase
+        .from("profiles")
+        .update({ email: user.email })
+        .eq("id", user.id)
+        .select()
+        .single()
+      return updated || existing
+    }
+    return existing
+  }
 
   const { data: created } = await supabase
     .from("profiles")
-    .insert({ id: user.id })
+    .insert({ id: user.id, email: user.email })
     .select()
     .single()
 
