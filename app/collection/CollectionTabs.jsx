@@ -1,6 +1,6 @@
 "use client"
 import { useState, useMemo, useEffect } from "react"
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
+import { useRouter } from "next/navigation"
 import AddCardsSearch from "./AddCardsSearch"
 import AddSealedSearch from "./AddSealedSearch"
 import ManualAddCard from "./ManualAddCard"
@@ -460,14 +460,13 @@ const controlStyle = { backgroundColor: "#141414", border: "1px solid #2a2a2a", 
 const statBox = { backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 20px", minWidth: 160 }
 
 export default function CollectionTabs({ myCards, mySealed, collections, mainCollectionId, manualAddOptions }) {
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const router = useRouter()
 
-  const [tab, setTabState] = useState(() => searchParams.get("tab") || "collection")
-  const [sellingMode, setSellingModeState] = useState(() => searchParams.get("selling") === "1")
-  const [query, setQueryState] = useState(() => searchParams.get("q") || "")
-  const [typeFilter, setTypeFilterState] = useState(() => searchParams.get("type") || "all")
-  const [sortBy, setSortByState] = useState(() => searchParams.get("sort") || "date_desc")
+  const [tab, setTab] = useState("collection")
+  const [sellingMode, setSellingMode] = useState(false)
+  const [query, setQuery] = useState("")
+  const [typeFilter, setTypeFilter] = useState("all")
+  const [sortBy, setSortBy] = useState("date_desc")
 
   const [selectedCollectionIds, setSelectedCollectionIds] = useState([mainCollectionId].filter(Boolean))
   const [soldQuery, setSoldQuery] = useState("")
@@ -476,34 +475,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
   const selectedNames = collections.filter((c) => selectedCollectionIds.includes(c.id)).map((c) => c.name).join(", ")
 
-  function updateUrlQuietly(key, value) {
-    const params = new URLSearchParams(window.location.search)
-    if (value == null || value === "") params.delete(key)
-    else params.set(key, value)
-    const newUrl = `${pathname}?${params.toString()}`
-    window.history.replaceState(null, "", newUrl)
-  }
-
-  function setTab(newTab) {
-    setTabState(newTab)
-    updateUrlQuietly("tab", newTab === "collection" ? null : newTab)
-  }
-  function setQuery(newQuery) {
-    setQueryState(newQuery)
-    updateUrlQuietly("q", newQuery)
-  }
-  function setTypeFilter(newType) {
-    setTypeFilterState(newType)
-    updateUrlQuietly("type", newType === "all" ? null : newType)
-  }
-  function setSortBy(newSort) {
-    setSortByState(newSort)
-    updateUrlQuietly("sort", newSort === "date_desc" ? null : newSort)
-  }
   function toggleSellingMode() {
-    const next = !sellingMode
-    setSellingModeState(next)
-    updateUrlQuietly("selling", next ? "1" : null)
+    setSellingMode((prev) => !prev)
   }
 
   const combined = useMemo(() => {
@@ -628,7 +601,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       formData.set("collection_id", id)
       await clearSoldHistory(formData)
     }
-    window.location.reload()
+    router.refresh()
   }
 
   const addTargetCollectionId = selectedCollectionIds[0] || mainCollectionId
