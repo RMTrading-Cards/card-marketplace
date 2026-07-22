@@ -74,7 +74,7 @@ async function run() {
       return {
         id: `tcg${set.category}-${p.id}`,
         name: p.name,
-        set_name: p.set_name,
+        set_name: p.set_name || set.setName,
         set_id: String(set.setId),
         card_number: p.number,
         set_total: products.length,

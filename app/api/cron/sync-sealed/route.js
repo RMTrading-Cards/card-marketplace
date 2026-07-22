@@ -86,7 +86,7 @@ export async function GET(request) {
           tcgplayer_id: String(p.id),
           name: p.name,
           set_id: String(set.setId),
-          set_name: p.set_name,
+          set_name: p.set_name || set.setName,
           product_type: null,
           image_url: p.image_url,
           region: set.region,
