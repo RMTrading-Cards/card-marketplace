@@ -1,7 +1,7 @@
 ﻿import { createClient } from "@/lib/supabase/server"
 import CollectionTabs from "./CollectionTabs"
 import ProfileMenu from "./ProfileMenu"
-import { getOrCreateProfile, getOrCreateMainCollection, listCollections } from "./actions"
+import { getOrCreateProfile, getOrCreateMainCollection, listCollections, getManualAddOptions } from "./actions"
 
 export default async function Collection() {
   const supabase = await createClient()
@@ -10,6 +10,7 @@ export default async function Collection() {
   const isAdmin = user!.id === process.env.ADMIN_USER_ID
   await getOrCreateMainCollection()
   const collections = await listCollections()
+  const manualAddOptions = await getManualAddOptions()
   const mainCollection = collections.find((c) => c.is_main)
 
   const { data: myCards } = await supabase
@@ -42,6 +43,7 @@ export default async function Collection() {
           mySealed={mySealed || []}
           collections={collections}
           mainCollectionId={mainCollection?.id}
+          manualAddOptions={manualAddOptions}
         />
       </div>
     </div>

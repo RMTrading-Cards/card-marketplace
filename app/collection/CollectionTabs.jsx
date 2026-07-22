@@ -459,7 +459,7 @@ const tabButtonBase = { padding: "8px 20px", borderRadius: 6, fontSize: 14, font
 const controlStyle = { backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 8, padding: "10px 14px", fontSize: 16, boxSizing: "border-box" }
 const statBox = { backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 20px", minWidth: 160 }
 
-export default function CollectionTabs({ myCards, mySealed, collections, mainCollectionId }) {
+export default function CollectionTabs({ myCards, mySealed, collections, mainCollectionId, manualAddOptions }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -912,7 +912,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
       {tab === "cards" && <AddCardsSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
       {tab === "sealed" && <AddSealedSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
-      {tab === "manual" && <ManualAddCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
+      {tab === "manual" && <ManualAddCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} manualAddOptions={manualAddOptions} />}
     </div>
   )
 }

@@ -17,7 +17,9 @@ const inputStyle = {
 const labelStyle = { color: "#9ca3af", fontSize: 12, marginBottom: 4, display: "block" }
 const fieldWrap = { marginBottom: 12 }
 
-export default function ManualAddCard({ collectionId, onAdded }) {
+export default function ManualAddCard({ collectionId, onAdded, manualAddOptions }) {
+  const setNames = manualAddOptions?.setNames || []
+  const rarities = manualAddOptions?.rarities || []
   const router = useRouter()
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
@@ -109,12 +111,27 @@ export default function ManualAddCard({ collectionId, onAdded }) {
 
         <div style={fieldWrap}>
           <label style={labelStyle}>Set / Type</label>
-          <input name="set_name" placeholder="e.g. Obsidian Flames" style={inputStyle} />
+          <input
+            name="set_name"
+            list="set-name-options"
+            placeholder="Type or pick a set..."
+            style={inputStyle}
+          />
+          <datalist id="set-name-options">
+            {setNames.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
         </div>
 
         <div style={fieldWrap}>
           <label style={labelStyle}>Rarity</label>
-          <input name="rarity" placeholder="e.g. Special Illustration Rare" style={inputStyle} />
+          <select name="rarity" defaultValue="" style={inputStyle}>
+            <option value="" disabled>Select a rarity...</option>
+            {rarities.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
         </div>
 
         <div style={fieldWrap}>

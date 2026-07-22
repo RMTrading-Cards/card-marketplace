@@ -762,3 +762,15 @@ export async function refreshSealedData() {
   revalidatePath("/collection")
   return json
 }
+
+export async function getManualAddOptions() {
+  const supabase = await createClient()
+
+  const { data: setRows } = await supabase.from("distinct_set_names").select("set_name")
+  const { data: rarityRows } = await supabase.from("distinct_rarities").select("rarity")
+
+  return {
+    setNames: (setRows || []).map((r) => r.set_name),
+    rarities: (rarityRows || []).map((r) => r.rarity),
+  }
+}
