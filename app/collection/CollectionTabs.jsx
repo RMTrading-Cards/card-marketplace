@@ -1,8 +1,8 @@
 "use client"
 import { useState, useMemo, useEffect } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import AddCardsSearch from "./AddCardsSearch"
 import AddSealedSearch from "./AddSealedSearch"
+import ManualAddCard from "./ManualAddCard"
 import CollectionSelector from "./CollectionSelector"
 import {
   removeCardFromCollection,
@@ -696,7 +696,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
         <button className={`rmt-tab${tab === "collection" ? " rmt-tab-active" : ""}`} onClick={() => setTab("collection")} style={tabButtonBase}>Collection</button>
         <button className={`rmt-tab${tab === "sold" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sold")} style={tabButtonBase}>Sold History</button>
         <button className={`rmt-tab${tab === "cards" ? " rmt-tab-active" : ""}`} onClick={() => setTab("cards")} style={tabButtonBase}>Add Cards</button>
-        <button className={`rmt-tab${tab === "sealed" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sealed")} style={tabButtonBase}>Add Sealed</button>
+	<button className={`rmt-tab${tab === "sealed" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sealed")} style={tabButtonBase}>Add Sealed</button>
+        <button className={`rmt-tab${tab === "manual" ? " rmt-tab-active" : ""}`} onClick={() => setTab("manual")} style={tabButtonBase}>Manual Add Card</button>
       </div>
 
       {tab === "collection" && (
@@ -971,6 +972,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
       {tab === "cards" && <AddCardsSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
       {tab === "sealed" && <AddSealedSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
+      {tab === "manual" && <ManualAddCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
     </div>
   )
 }

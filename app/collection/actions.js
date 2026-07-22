@@ -629,3 +629,41 @@ export async function getOrCreateShareSlug(formData) {
 
   return slug
 }
+
+export async function addManualCard(formData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const cardId = `manual-${crypto.randomUUID()}`
+
+  const { error: cardError } = await supabase.from("cards").insert({
+    id: cardId,
+    name: formData.get("name"),
+    set_name: formData.get("set_name") || null,
+    card_type: formData.get("card_type") || null,
+    rarity: formData.get("rarity") || null,
+    image_small: formData.get("image_url") || null,
+    image_large: formData.get("image_url") || null,
+    tcgplayer_market_price: formData.get("market_price") ? Number(formData.get("market_price")) : null,
+    is_manual: true,
+    is_graded: formData.get("is_graded") === "yes",
+    grade_value: formData.get("is_graded") === "yes" ? formData.get("grade_value") : null,
+    region: "MANUAL",
+  })
+  if (cardError) throw new Error(cardError.message)
+
+  const { error: userCardError } = await supabase.from("user_cards").insert({
+    user_id: user.id,
+    card_id: cardId,
+    quantity: Number(formData.get("quantity")) || 1,
+    condition: formData.get("condition") || "NM",
+    purchase_price: formData.get("purchase_price") ? Number(formData.get("purchase_price")) : null,
+    manual_price: formData.get("ask_price") ? Number(formData.get("ask_price")) : null,
+    variant: "Standard",
+    collection_id: formData.get("collection_id") || null,
+  })
+  if (userCardError) throw new Error(userCardError.message)
+
+  revalidatePath("/collection")
+}
