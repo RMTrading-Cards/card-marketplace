@@ -8,8 +8,8 @@ function buildNamePattern(token) {
   return token.replace(/[\u2019\u2018']/g, "_")
 }
 
-export async function searchCards(query) {
-  if (!query || query.trim().length < 2) return []
+export async function searchCards(query, sortBy = "name", page = 1, pageSize = 20) {
+  if (!query || query.trim().length < 2) return { results: [], totalCount: 0 }
 
   const supabase = await createClient()
   const rawTokens = query.trim().split(/\s+/).filter(Boolean)
@@ -29,61 +29,64 @@ export async function searchCards(query) {
     }
   }
 
-  let nameQuery = supabase.from("cards").select(selectCols)
+  let q = supabase.from("cards").select(selectCols, { count: "exact" })
   for (const token of nameTokens) {
-    nameQuery = nameQuery.ilike("name", `%${buildNamePattern(token)}%`)
+    q = q.ilike("name", `%${buildNamePattern(token)}%`)
   }
   for (const num of numberTokens) {
-    nameQuery = nameQuery.ilike("card_number", `%${num}%`)
+    q = q.ilike("card_number", `%${num}%`)
   }
 
-  const { data: nameMatches, error: nameError } = await nameQuery.order("name").limit(60)
-  if (nameError) console.error(nameError)
-
-  const results = nameMatches ? [...nameMatches] : []
-  const haveIds = new Set(results.map((r) => r.id))
-
-  if (results.length < 60 && nameTokens.length > 0) {
-    let broadQuery = supabase.from("cards").select(selectCols)
-    for (const token of nameTokens) {
-      broadQuery = broadQuery.or(`name.ilike.%${buildNamePattern(token)}%,set_name.ilike.%${token}%`)
-    }
-    for (const num of numberTokens) {
-      broadQuery = broadQuery.ilike("card_number", `%${num}%`)
-    }
-    const { data: broadMatches, error: broadError } = await broadQuery
-      .order("name")
-      .limit(60 - results.length)
-    if (broadError) console.error(broadError)
-
-    for (const row of broadMatches || []) {
-      if (!haveIds.has(row.id)) {
-        results.push(row)
-        haveIds.add(row.id)
-      }
-    }
+  if (sortBy === "price_desc") {
+    q = q.order("tcgplayer_market_price", { ascending: false, nullsFirst: false })
+  } else if (sortBy === "price_asc") {
+    q = q.order("tcgplayer_market_price", { ascending: true, nullsFirst: false })
+  } else {
+    q = q.order("name")
   }
 
-  return results
-}
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  q = q.range(from, to)
 
-export async function searchSealedProducts(query) {
-  if (!query || query.trim().length < 2) return []
-
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from("sealed_products")
-    .select("*")
-    .or(`name.ilike.%${query}%,set_name.ilike.%${query}%`)
-    .order("name")
-    .limit(60)
-
+  const { data, error, count } = await q
   if (error) {
     console.error(error)
-    return []
+    return { results: [], totalCount: 0 }
   }
 
-  return (data || []).map((p) => ({
+  return { results: data || [], totalCount: count || 0 }
+}
+
+export async function searchSealedProducts(query, sortBy = "name", page = 1, pageSize = 20) {
+  if (!query || query.trim().length < 2) return { results: [], totalCount: 0 }
+
+  const supabase = await createClient()
+
+  let q = supabase
+    .from("sealed_products")
+    .select("*", { count: "exact" })
+    .or(`name.ilike.%${query}%,set_name.ilike.%${query}%`)
+
+  if (sortBy === "price_desc") {
+    q = q.order("market_price", { ascending: false, nullsFirst: false })
+  } else if (sortBy === "price_asc") {
+    q = q.order("market_price", { ascending: true, nullsFirst: false })
+  } else {
+    q = q.order("name")
+  }
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  q = q.range(from, to)
+
+  const { data, error, count } = await q
+  if (error) {
+    console.error(error)
+    return { results: [], totalCount: 0 }
+  }
+
+  const results = (data || []).map((p) => ({
     id: p.id,
     tcgPlayerId: p.tcgplayer_id,
     name: p.name,
@@ -91,6 +94,8 @@ export async function searchSealedProducts(query) {
     imageUrl: p.image_url,
     unopenedPrice: p.market_price,
   }))
+
+  return { results, totalCount: count || 0 }
 }
 
 export async function addCardToCollection(formData) {
@@ -733,6 +738,18 @@ export async function addManualCard(formData) {
   revalidatePath("/collection")
 }
 
+export async function getManualAddOptions() {
+  const supabase = await createClient()
+
+  const { data: setRows } = await supabase.from("distinct_set_names").select("set_name")
+  const { data: rarityRows } = await supabase.from("distinct_rarities").select("rarity")
+
+  return {
+    setNames: (setRows || []).map((r) => r.set_name),
+    rarities: (rarityRows || []).map((r) => r.rarity),
+  }
+}
+
 export async function refreshCardsData() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -761,16 +778,4 @@ export async function refreshSealedData() {
   const json = await res.json()
   revalidatePath("/collection")
   return json
-}
-
-export async function getManualAddOptions() {
-  const supabase = await createClient()
-
-  const { data: setRows } = await supabase.from("distinct_set_names").select("set_name")
-  const { data: rarityRows } = await supabase.from("distinct_rarities").select("rarity")
-
-  return {
-    setNames: (setRows || []).map((r) => r.set_name),
-    rarities: (rarityRows || []).map((r) => r.rarity),
-  }
 }

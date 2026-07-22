@@ -1,9 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { notFound } from "next/navigation"
-
-function formatPrice(n) {
-  return n == null ? "N/A" : `$${n.toFixed(2)}`
-}
+import ShareCollectionView from "../ShareCollectionView"
 
 function getVariantPrice(card, variant) {
   if (!card) return null
@@ -42,17 +39,38 @@ export default async function SharedCollectionPage({ params }) {
     .eq("collection_id", collection.id)
     .is("sold_at", null)
 
-  const cardBox = {
-    backgroundColor: "#141414",
-    border: "1px solid #2a2a2a",
-    borderRadius: 8,
-    padding: 12,
-    display: "flex",
-    gap: 12,
-    flexWrap: "wrap",
-  }
-  const imageCol = { flex: "1 1 40%", maxWidth: 200, minWidth: 110 }
-  const infoCol = { flex: "1 1 50%", minWidth: 150, color: "#ffffff" }
+  const cardItems = (cards || []).map((item) => {
+    const card = item.cards
+    const market = getVariantPrice(card, item.variant)
+    return {
+      kind: "card",
+      id: item.id,
+      name: card?.name || "",
+      subLabel: card?.set_name,
+      image: card?.image_small,
+      cardNumber: card?.card_number,
+      setTotal: card?.set_total,
+      releaseYear: card?.release_year,
+      rarity: card?.rarity,
+      variant: item.variant,
+      region: card?.region,
+      quantity: item.quantity,
+      condition: item.condition,
+      askPrice: item.manual_price ?? market,
+    }
+  })
+
+  const sealedItems = (sealed || []).map((item) => ({
+    kind: "sealed",
+    id: item.id,
+    name: item.name,
+    subLabel: item.set_name,
+    image: item.image_url,
+    quantity: item.quantity,
+    askPrice: item.manual_price ?? item.market_price,
+  }))
+
+  const allItems = [...cardItems, ...sealedItems]
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#0d0d0d" }}>
@@ -65,70 +83,7 @@ export default async function SharedCollectionPage({ params }) {
           {collection.name}
         </h2>
 
-        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
-          {(cards || []).map((item) => {
-            const card = item.cards
-            const market = getVariantPrice(card, item.variant)
-            const askPrice = item.manual_price ?? market
-
-            return (
-              <div key={`card-${item.id}`} style={cardBox}>
-                <div style={imageCol}>
-                  {card?.image_small && (
-                    <img src={card.image_small} alt={card.name} style={{ width: "100%", borderRadius: 6 }} />
-                  )}
-                </div>
-                <div style={infoCol}>
-                  <strong>
-                    {card?.region === "JP" ? "JP " : ""}{card?.name}
-                    {card?.card_number && card?.set_total && (
-                      <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
-                    )}
-                  </strong>{" "}
-                  <span style={{ color: "#9ca3af" }}>
-                    ({card?.set_name}{card?.release_year && ` · ${card.release_year}`})
-                  </span>
-                  {card?.rarity && (
-                    <div style={{ color: "#F2B705", fontSize: 12, marginTop: 2 }}>
-                      {card.rarity} · {item.variant || "Standard"}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 13, marginTop: 6 }}>
-                    Qty: {item.quantity} · Condition: {item.condition}
-                  </div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#F2B705", marginTop: 8 }}>
-                    Ask: {formatPrice(askPrice)}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-
-          {(sealed || []).map((item) => {
-            const askPrice = item.manual_price ?? item.market_price
-            return (
-              <div key={`sealed-${item.id}`} style={cardBox}>
-                <div style={imageCol}>
-                  {item.image_url && (
-                    <img src={item.image_url} alt={item.name} style={{ width: "100%", borderRadius: 6 }} />
-                  )}
-                </div>
-                <div style={infoCol}>
-                  <strong>{item.name}</strong>{" "}
-                  <span style={{ color: "#9ca3af" }}>({item.set_name})</span>
-                  <div style={{ fontSize: 13, marginTop: 6 }}>Qty: {item.quantity}</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#F2B705", marginTop: 8 }}>
-                    Ask: {formatPrice(askPrice)}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {(cards || []).length === 0 && (sealed || []).length === 0 && (
-          <p style={{ color: "#9ca3af", fontStyle: "italic" }}>This collection is empty.</p>
-        )}
+        <ShareCollectionView items={allItems} />
       </div>
     </div>
   )

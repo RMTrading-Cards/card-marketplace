@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import CollectionTabs from "./CollectionTabs"
 import ProfileMenu from "./ProfileMenu"
 import { getOrCreateProfile, getOrCreateMainCollection, listCollections, getManualAddOptions } from "./actions"
@@ -6,26 +6,34 @@ import { getOrCreateProfile, getOrCreateMainCollection, listCollections, getManu
 export default async function Collection() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const profile = await getOrCreateProfile()
-  const isAdmin = user!.id === process.env.ADMIN_USER_ID
-  await getOrCreateMainCollection()
-  const collections = await listCollections()
-  const manualAddOptions = await getManualAddOptions()
+
+  const [profile, , collections, manualAddOptions] = await Promise.all([
+    getOrCreateProfile(),
+    getOrCreateMainCollection(),
+    listCollections(),
+    getManualAddOptions(),
+  ])
+
   const mainCollection = collections.find((c) => c.is_main)
+  const isAdmin = user!.id === process.env.ADMIN_USER_ID
 
-  const { data: myCards } = await supabase
-    .from("user_cards")
-    .select(
-      "id, quantity, purchase_price, condition, collection_id, manual_price, variant, created_at, sold_price, sold_at, cards(name, image_small, tcgplayer_market_price, set_name, card_number, set_total, release_year, rarity, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region)"
-    )
-    .eq("user_id", user!.id)
-    .order("created_at", { ascending: false })
+  const [cardsResult, sealedResult] = await Promise.all([
+    supabase
+      .from("user_cards")
+      .select(
+        "id, quantity, purchase_price, condition, collection_id, manual_price, variant, created_at, sold_price, sold_at, cards(name, image_small, tcgplayer_market_price, set_name, card_number, set_total, release_year, rarity, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region)"
+      )
+      .eq("user_id", user!.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("user_sealed_items")
+      .select("*")
+      .eq("user_id", user!.id)
+      .order("created_at", { ascending: false }),
+  ])
 
-  const { data: mySealed } = await supabase
-    .from("user_sealed_items")
-    .select("*")
-    .eq("user_id", user!.id)
-    .order("created_at", { ascending: false })
+  const myCards = cardsResult.data
+  const mySealed = sealedResult.data
 
   return (
     <div className="min-h-screen bg-[#0d0d0d]">
