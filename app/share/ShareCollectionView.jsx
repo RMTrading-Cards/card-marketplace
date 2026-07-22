@@ -32,7 +32,12 @@ export default function ShareCollectionView({ items }) {
   const [sortBy, setSortBy] = useState("name")
 
   const filtered = useMemo(() => {
-    let list = items.filter((item) => item.name.toLowerCase().includes(query.toLowerCase()))
+    const q = query.toLowerCase()
+    let list = items.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.subLabel && item.subLabel.toLowerCase().includes(q))
+    )
     if (typeFilter !== "all") list = list.filter((item) => item.kind === typeFilter)
     list.sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name)
@@ -48,7 +53,7 @@ export default function ShareCollectionView({ items }) {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
         <input
           type="text"
-          placeholder="Search this collection..."
+          placeholder="Search by card name or set..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ ...controlStyle, flex: 1, minWidth: 200 }}
