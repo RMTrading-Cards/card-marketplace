@@ -2,33 +2,54 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
+function buildNamePattern(token) {
+  // Replace apostrophe-like characters (straight ' or curly ') with SQL '_' wildcard
+  // so a search for "steven's" matches names using either style of apostrophe.
+  return token.replace(/[\u2019\u2018']/g, "_")
+}
+
 export async function searchCards(query) {
   if (!query || query.trim().length < 2) return []
 
   const supabase = await createClient()
-  const tokens = query.trim().split(/\s+/).filter(Boolean)
+  const rawTokens = query.trim().split(/\s+/).filter(Boolean)
   const selectCols =
     "id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region"
 
-  let nameQuery = supabase.from("cards").select(selectCols)
-  for (const token of tokens) {
-    nameQuery = nameQuery.ilike("name", `%${token}%`)
+  const numberTokens = []
+  const nameTokens = []
+
+  for (const token of rawTokens) {
+    if (token.includes("/")) {
+      numberTokens.push(token.split("/")[0])
+    } else if (/^\d+$/.test(token)) {
+      numberTokens.push(token)
+    } else {
+      nameTokens.push(token)
+    }
   }
+
+  let nameQuery = supabase.from("cards").select(selectCols)
+  for (const token of nameTokens) {
+    nameQuery = nameQuery.ilike("name", `%${buildNamePattern(token)}%`)
+  }
+  for (const num of numberTokens) {
+    nameQuery = nameQuery.ilike("card_number", `%${num}%`)
+  }
+
   const { data: nameMatches, error: nameError } = await nameQuery.order("name").limit(60)
   if (nameError) console.error(nameError)
 
   const results = nameMatches ? [...nameMatches] : []
   const haveIds = new Set(results.map((r) => r.id))
 
-  if (results.length < 60) {
+  if (results.length < 60 && nameTokens.length > 0) {
     let broadQuery = supabase.from("cards").select(selectCols)
-    for (const token of tokens) {
-      if (token.includes("/")) {
-        const [num] = token.split("/")
-        broadQuery = broadQuery.or(`card_number.ilike.%${num}%,set_name.ilike.%${token}%`)
-      } else {
-        broadQuery = broadQuery.or(`set_name.ilike.%${token}%,card_number.ilike.%${token}%`)
-      }
+    for (const token of nameTokens) {
+      broadQuery = broadQuery.or(`name.ilike.%${buildNamePattern(token)}%,set_name.ilike.%${token}%`)
+    }
+    for (const num of numberTokens) {
+      broadQuery = broadQuery.ilike("card_number", `%${num}%`)
     }
     const { data: broadMatches, error: broadError } = await broadQuery
       .order("name")
