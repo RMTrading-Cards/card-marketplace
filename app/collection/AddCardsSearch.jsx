@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useState, useTransition, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { searchCards, addCardToCollection } from "./actions"
@@ -15,6 +15,17 @@ function ebayPayout(value) {
   return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
 }
 
+function getConditionPrice(card, variant, condition) {
+  const basePrice = variant.price
+  if (!card?.raw_skus) return basePrice
+  const wantLang = card.region === "JP" ? "JP" : "EN"
+  const rows = Object.values(card.raw_skus)
+  const matches = rows.filter((r) => r.var === variant.key && r.cnd === condition)
+  const best = matches.find((r) => r.lng === wantLang) || matches[0]
+  if (best?.mkt != null) return best.mkt
+  return basePrice
+}
+
 const cardBox = {
   backgroundColor: "#141414",
   border: "1px solid #2a2a2a",
@@ -24,15 +35,8 @@ const cardBox = {
   gap: 12,
   flexWrap: "wrap",
 }
-const imageCol = {
-  flex: "1 1 40%",
-  maxWidth: 200,
-  minWidth: 110,
-}
-const infoCol = {
-  flex: "1 1 50%",
-  minWidth: 150,
-}
+const imageCol = { flex: "1 1 40%", maxWidth: 200, minWidth: 110 }
+const infoCol = { flex: "1 1 50%", minWidth: 150 }
 const inputStyle = {
   width: "100%",
   backgroundColor: "#0d0d0d",
@@ -57,13 +61,16 @@ function getVariants(card) {
 }
 
 function CardResult({ card, variant, onAdded, collectionId }) {
-  const market = variant.price
   const [quantity, setQuantity] = useState(1)
+  const [condition, setCondition] = useState("NM")
   const [purchasePrice, setPurchasePrice] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const router = useRouter()
   const parsedPrice = purchasePrice === "" ? null : Number(purchasePrice)
   const thresholds = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+
+  const market = getConditionPrice(card, variant, condition)
+  const payout = ebayPayout(market)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -97,7 +104,7 @@ function CardResult({ card, variant, onAdded, collectionId }) {
           {card.rarity && (
             <span style={{ color: "#F2B705", fontSize: 12 }}>{card.rarity}</span>
           )}
-          <span style={{ color: "#9ca3af", fontSize: 12 }}>· {variant.key}</span>
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>· {variant.key}{card.region === "JP" ? " · JP" : ""}</span>
         </div>
         <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8, display: "flex", justifyContent: "space-between", maxWidth: 220 }}>
           <span>Market: {formatPrice(market)}</span>
@@ -112,7 +119,7 @@ function CardResult({ card, variant, onAdded, collectionId }) {
         {market != null && (
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 11, color: "#d1d5db" }}>
-              eBay Payout (~87%): {formatPrice(ebayPayout(market))}
+              eBay Payout (~87%): {formatPrice(payout)}
             </div>
           </div>
         )}
@@ -148,12 +155,15 @@ function CardResult({ card, variant, onAdded, collectionId }) {
             style={inputStyle}
           >
             {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                Qty: {n}
-              </option>
+              <option key={n} value={n}>Qty: {n}</option>
             ))}
           </select>
-          <select name="condition" defaultValue="NM" style={inputStyle}>
+          <select
+            name="condition"
+            value={condition}
+            onChange={(e) => setCondition(e.target.value)}
+            style={inputStyle}
+          >
             <option value="NM">Near Mint</option>
             <option value="LP">Lightly Played</option>
             <option value="MP">Moderately Played</option>
