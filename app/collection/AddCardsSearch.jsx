@@ -91,7 +91,7 @@ function CardResult({ card, variant, onAdded, collectionId }) {
       </div>
       <div style={infoCol}>
         <p style={{ color: "#ffffff", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-          {card.name}
+          {card.region === "JP" ? "JP " : ""}{card.name}
           {card.card_number && card.set_total && (
             <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
           )}
@@ -104,7 +104,7 @@ function CardResult({ card, variant, onAdded, collectionId }) {
           {card.rarity && (
             <span style={{ color: "#F2B705", fontSize: 12 }}>{card.rarity}</span>
           )}
-          <span style={{ color: "#9ca3af", fontSize: 12 }}>· {variant.key}{card.region === "JP" ? " · JP" : ""}</span>
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>· {variant.key}</span>
         </div>
         <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8, display: "flex", justifyContent: "space-between", maxWidth: 220 }}>
           <span>Market: {formatPrice(market)}</span>

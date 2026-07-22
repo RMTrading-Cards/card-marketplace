@@ -452,46 +452,12 @@ function ActualProfitBox({ label, value, onClear }) {
   )
 }
 
-const cardBox = {
-  backgroundColor: "#141414",
-  border: "1px solid #2a2a2a",
-  borderRadius: 8,
-  padding: 12,
-  display: "flex",
-  gap: 12,
-  flexWrap: "wrap",
-}
+const cardBox = { backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12, display: "flex", gap: 12, flexWrap: "wrap" }
 const imageCol = { flex: "1 1 40%", maxWidth: 200, minWidth: 110 }
 const infoCol = { flex: "1 1 50%", minWidth: 150, color: "#ffffff" }
-
-const tabButtonBase = {
-  padding: "8px 20px",
-  borderRadius: 6,
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-  border: "1px solid #2a2a2a",
-  backgroundColor: "#141414",
-  color: "#ffffff",
-}
-
-const controlStyle = {
-  backgroundColor: "#141414",
-  border: "1px solid #2a2a2a",
-  color: "#ffffff",
-  borderRadius: 8,
-  padding: "10px 14px",
-  fontSize: 16,
-  boxSizing: "border-box",
-}
-
-const statBox = {
-  backgroundColor: "#141414",
-  border: "1px solid #2a2a2a",
-  borderRadius: 8,
-  padding: "14px 20px",
-  minWidth: 160,
-}
+const tabButtonBase = { padding: "8px 20px", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: "pointer", border: "1px solid #2a2a2a", backgroundColor: "#141414", color: "#ffffff" }
+const controlStyle = { backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 8, padding: "10px 14px", fontSize: 16, boxSizing: "border-box" }
+const statBox = { backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 20px", minWidth: 160 }
 
 export default function CollectionTabs({ myCards, mySealed, collections, mainCollectionId }) {
   const router = useRouter()
@@ -505,41 +471,24 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
   const sortBy = searchParams.get("sort") || "date_desc"
 
   const [selectedCollectionIds, setSelectedCollectionIds] = useState([mainCollectionId].filter(Boolean))
-
   const [soldQuery, setSoldQuery] = useState("")
   const [soldTypeFilter, setSoldTypeFilter] = useState("all")
   const [soldSortBy, setSoldSortBy] = useState("date_desc")
 
-  const selectedNames = collections
-    .filter((c) => selectedCollectionIds.includes(c.id))
-    .map((c) => c.name)
-    .join(", ")
+  const selectedNames = collections.filter((c) => selectedCollectionIds.includes(c.id)).map((c) => c.name).join(", ")
 
   function updateParam(key, value) {
     const params = new URLSearchParams(searchParams.toString())
-    if (value == null || value === "") {
-      params.delete(key)
-    } else {
-      params.set(key, value)
-    }
+    if (value == null || value === "") params.delete(key)
+    else params.set(key, value)
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
   }
 
-  function setTab(newTab) {
-    updateParam("tab", newTab === "collection" ? null : newTab)
-  }
-  function setQuery(newQuery) {
-    updateParam("q", newQuery)
-  }
-  function setTypeFilter(newType) {
-    updateParam("type", newType === "all" ? null : newType)
-  }
-  function setSortBy(newSort) {
-    updateParam("sort", newSort === "date_desc" ? null : newSort)
-  }
-  function toggleSellingMode() {
-    updateParam("selling", sellingMode ? null : "1")
-  }
+  function setTab(newTab) { updateParam("tab", newTab === "collection" ? null : newTab) }
+  function setQuery(newQuery) { updateParam("q", newQuery) }
+  function setTypeFilter(newType) { updateParam("type", newType === "all" ? null : newType) }
+  function setSortBy(newSort) { updateParam("sort", newSort === "date_desc" ? null : newSort) }
+  function toggleSellingMode() { updateParam("selling", sellingMode ? null : "1") }
 
   const combined = useMemo(() => {
     const cardRows = (myCards || []).map((item) => ({
@@ -578,18 +527,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
     return [...cardRows, ...sealedRows]
   }, [myCards, mySealed])
 
-  const activeInCollection = useMemo(
-    () => combined.filter((row) => selectedCollectionIds.includes(row.collectionId) && row.soldAt == null),
-    [combined, selectedCollectionIds]
-  )
-
-  const soldInCollection = useMemo(
-    () =>
-      combined
-        .filter((row) => selectedCollectionIds.includes(row.collectionId) && row.soldAt != null)
-        .sort((a, b) => new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime()),
-    [combined, selectedCollectionIds]
-  )
+  const activeInCollection = useMemo(() => combined.filter((row) => selectedCollectionIds.includes(row.collectionId) && row.soldAt == null), [combined, selectedCollectionIds])
+  const soldInCollection = useMemo(() => combined.filter((row) => selectedCollectionIds.includes(row.collectionId) && row.soldAt != null).sort((a, b) => new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime()), [combined, selectedCollectionIds])
 
   const soldAverages = useMemo(() => {
     const groups = {}
@@ -697,7 +636,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
         <button className={`rmt-tab${tab === "collection" ? " rmt-tab-active" : ""}`} onClick={() => setTab("collection")} style={tabButtonBase}>Collection</button>
         <button className={`rmt-tab${tab === "sold" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sold")} style={tabButtonBase}>Sold History</button>
         <button className={`rmt-tab${tab === "cards" ? " rmt-tab-active" : ""}`} onClick={() => setTab("cards")} style={tabButtonBase}>Add Cards</button>
-	<button className={`rmt-tab${tab === "sealed" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sealed")} style={tabButtonBase}>Add Sealed</button>
+        <button className={`rmt-tab${tab === "sealed" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sealed")} style={tabButtonBase}>Add Sealed</button>
         <button className={`rmt-tab${tab === "manual" ? " rmt-tab-active" : ""}`} onClick={() => setTab("manual")} style={tabButtonBase}>Manual Add Card</button>
       </div>
 
@@ -780,7 +719,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     </div>
                     <div style={infoCol}>
                       <strong>
-                        {card?.name}
+                        {card?.region === "JP" ? "JP " : ""}{card?.name}
                         {card?.card_number && card?.set_total && (
                           <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
                         )}
@@ -790,7 +729,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       </span>
                       {card?.rarity && (
                         <div style={{ color: "#F2B705", fontSize: 12, marginTop: 2 }}>
-                          {card.rarity} · {row.variant || "Standard"}{card?.region === "JP" ? " · JP" : ""}
+                          {card.rarity} · {row.variant || "Standard"}
                         </div>
                       )}
                       <div style={{ fontSize: 13, marginTop: 6, marginBottom: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -937,7 +876,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     )}
                   </div>
                   <div style={infoCol}>
-                    <strong>{name}</strong>{" "}
+                    <strong>{row.kind === "card" && row.cardMeta?.region === "JP" ? "JP " : ""}{name}</strong>{" "}
                     <span style={{ color: "#9ca3af" }}>({row.subLabel})</span>
                     <div style={{ fontSize: 13, marginTop: 6 }}>
                       Qty: {row.quantity} · Paid: {formatPrice(row.purchasePrice)} · Sold: {formatPrice(row.soldPrice)}

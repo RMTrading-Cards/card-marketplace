@@ -7,6 +7,7 @@ export default async function Collection() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const profile = await getOrCreateProfile()
+  const isAdmin = user!.email === process.env.ADMIN_EMAIL
   await getOrCreateMainCollection()
   const collections = await listCollections()
   const mainCollection = collections.find((c) => c.is_main)
@@ -33,7 +34,7 @@ export default async function Collection() {
             <span className="text-[#F2B705]">RMT</span>
             <span className="text-white">rading Cards</span>
           </h1>
-          <ProfileMenu email={user!.email} username={profile?.username} />
+          <ProfileMenu email={user!.email} username={profile?.username} isAdmin={isAdmin} />
         </div>
 
         <CollectionTabs

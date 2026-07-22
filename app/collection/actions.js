@@ -687,3 +687,33 @@ export async function addManualCard(formData) {
 
   revalidatePath("/collection")
 }
+
+export async function refreshCardsData() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.email !== process.env.ADMIN_EMAIL) {
+    throw new Error("Not authorized")
+  }
+
+  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-cards", {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  })
+  const json = await res.json()
+  revalidatePath("/collection")
+  return json
+}
+
+export async function refreshSealedData() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.email !== process.env.ADMIN_EMAIL) {
+    throw new Error("Not authorized")
+  }
+
+  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-sealed", {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  })
+  const json = await res.json()
+  revalidatePath("/collection")
+  return json
+}

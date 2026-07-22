@@ -1,12 +1,15 @@
-﻿"use client"
+"use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { updateUsername } from "./actions"
+import { updateUsername, refreshCardsData, refreshSealedData } from "./actions"
 
-export default function ProfileMenu({ email, username }) {
+export default function ProfileMenu({ email, username, isAdmin }) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [refreshingCards, setRefreshingCards] = useState(false)
+  const [refreshingSealed, setRefreshingSealed] = useState(false)
+  const [refreshResult, setRefreshResult] = useState("")
   const router = useRouter()
 
   async function handleSignOut() {
@@ -21,6 +24,34 @@ export default function ProfileMenu({ email, username }) {
     await updateUsername(formData)
     setEditing(false)
     router.refresh()
+  }
+
+  async function handleRefreshCards() {
+    setRefreshingCards(true)
+    setRefreshResult("")
+    try {
+      const result = await refreshCardsData()
+      setRefreshResult(`Cards: synced ${result.cardsSynced ?? 0} (${result.nextIndex}/${result.totalSets} sets)`)
+      router.refresh()
+    } catch (err) {
+      setRefreshResult(`Error: ${err.message}`)
+    } finally {
+      setRefreshingCards(false)
+    }
+  }
+
+  async function handleRefreshSealed() {
+    setRefreshingSealed(true)
+    setRefreshResult("")
+    try {
+      const result = await refreshSealedData()
+      setRefreshResult(`Sealed: synced ${result.productsSynced ?? 0} (${result.nextIndex}/${result.totalSets} sets)`)
+      router.refresh()
+    } catch (err) {
+      setRefreshResult(`Error: ${err.message}`)
+    } finally {
+      setRefreshingSealed(false)
+    }
   }
 
   return (
@@ -52,7 +83,7 @@ export default function ProfileMenu({ email, username }) {
             border: "1px solid #2a2a2a",
             borderRadius: 8,
             padding: 16,
-            minWidth: 220,
+            minWidth: 260,
             zIndex: 20,
           }}
         >
@@ -112,6 +143,56 @@ export default function ProfileMenu({ email, username }) {
             >
               {username ? "Change username" : "Set username"}
             </button>
+          )}
+
+          {isAdmin && (
+            <div style={{ marginBottom: 12, paddingTop: 12, borderTop: "1px solid #2a2a2a" }}>
+              <div style={{ color: "#9ca3af", fontSize: 11, marginBottom: 8 }}>
+                Admin: force a data refresh (daily auto-sync still runs regardless)
+              </div>
+              <button
+                onClick={handleRefreshCards}
+                disabled={refreshingCards}
+                style={{
+                  width: "100%",
+                  backgroundColor: "#16a34a",
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  borderRadius: 6,
+                  padding: "8px 10px",
+                  fontSize: 13,
+                  border: "none",
+                  cursor: refreshingCards ? "default" : "pointer",
+                  marginBottom: 8,
+                  opacity: refreshingCards ? 0.7 : 1,
+                }}
+              >
+                {refreshingCards ? "Refreshing Cards..." : "Refresh Cards Data"}
+              </button>
+              <button
+                onClick={handleRefreshSealed}
+                disabled={refreshingSealed}
+                style={{
+                  width: "100%",
+                  backgroundColor: "#16a34a",
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  borderRadius: 6,
+                  padding: "8px 10px",
+                  fontSize: 13,
+                  border: "none",
+                  cursor: refreshingSealed ? "default" : "pointer",
+                  opacity: refreshingSealed ? 0.7 : 1,
+                }}
+              >
+                {refreshingSealed ? "Refreshing Sealed..." : "Refresh Sealed Data"}
+              </button>
+              {refreshResult && (
+                <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 8, wordBreak: "break-word" }}>
+                  {refreshResult}
+                </div>
+              )}
+            </div>
           )}
 
           <button

@@ -31,7 +31,7 @@ export default async function SharedCollectionPage({ params }) {
   const { data: cards } = await supabase
     .from("user_cards")
     .select(
-      "id, quantity, condition, variant, manual_price, cards(name, image_small, set_name, card_number, set_total, release_year, rarity, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil)"
+      "id, quantity, condition, variant, manual_price, cards(name, image_small, set_name, card_number, set_total, release_year, rarity, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, region)"
     )
     .eq("collection_id", collection.id)
     .is("sold_at", null)
@@ -80,7 +80,7 @@ export default async function SharedCollectionPage({ params }) {
                 </div>
                 <div style={infoCol}>
                   <strong>
-                    {card?.name}
+                    {card?.region === "JP" ? "JP " : ""}{card?.name}
                     {card?.card_number && card?.set_total && (
                       <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
                     )}
