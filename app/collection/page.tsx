@@ -7,7 +7,7 @@ export default async function Collection() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const profile = await getOrCreateProfile()
-  const isAdmin = user!.email === process.env.ADMIN_EMAIL
+  const isAdmin = user!.id === process.env.ADMIN_USER_ID
   await getOrCreateMainCollection()
   const collections = await listCollections()
   const mainCollection = collections.find((c) => c.is_main)

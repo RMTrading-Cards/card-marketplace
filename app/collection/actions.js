@@ -7,30 +7,43 @@ export async function searchCards(query) {
 
   const supabase = await createClient()
   const tokens = query.trim().split(/\s+/).filter(Boolean)
+  const selectCols =
+    "id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region"
 
-  let q = supabase
-    .from("cards")
-    .select("id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region")
-
+  let nameQuery = supabase.from("cards").select(selectCols)
   for (const token of tokens) {
-    if (token.includes("/")) {
-      const [num] = token.split("/")
-      q = q.or(
-        `card_number.ilike.%${num}%,name.ilike.%${token}%,set_name.ilike.%${token}%`
-      )
-    } else {
-      q = q.or(
-        `name.ilike.%${token}%,set_name.ilike.%${token}%,card_number.ilike.%${token}%`
-      )
+    nameQuery = nameQuery.ilike("name", `%${token}%`)
+  }
+  const { data: nameMatches, error: nameError } = await nameQuery.order("name").limit(60)
+  if (nameError) console.error(nameError)
+
+  const results = nameMatches ? [...nameMatches] : []
+  const haveIds = new Set(results.map((r) => r.id))
+
+  if (results.length < 60) {
+    let broadQuery = supabase.from("cards").select(selectCols)
+    for (const token of tokens) {
+      if (token.includes("/")) {
+        const [num] = token.split("/")
+        broadQuery = broadQuery.or(`card_number.ilike.%${num}%,set_name.ilike.%${token}%`)
+      } else {
+        broadQuery = broadQuery.or(`set_name.ilike.%${token}%,card_number.ilike.%${token}%`)
+      }
+    }
+    const { data: broadMatches, error: broadError } = await broadQuery
+      .order("name")
+      .limit(60 - results.length)
+    if (broadError) console.error(broadError)
+
+    for (const row of broadMatches || []) {
+      if (!haveIds.has(row.id)) {
+        results.push(row)
+        haveIds.add(row.id)
+      }
     }
   }
 
-  const { data, error } = await q.order("name").limit(60)
-  if (error) {
-    console.error(error)
-    return []
-  }
-  return data
+  return results
 }
 
 export async function searchSealedProducts(query) {
@@ -691,7 +704,7 @@ export async function addManualCard(formData) {
 export async function refreshCardsData() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || user.email !== process.env.ADMIN_EMAIL) {
+  if (!user || user.id !== process.env.ADMIN_USER_ID) {
     throw new Error("Not authorized")
   }
 
@@ -706,7 +719,7 @@ export async function refreshCardsData() {
 export async function refreshSealedData() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || user.email !== process.env.ADMIN_EMAIL) {
+  if (!user || user.id !== process.env.ADMIN_USER_ID) {
     throw new Error("Not authorized")
   }
 

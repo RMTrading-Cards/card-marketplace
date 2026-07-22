@@ -37,6 +37,9 @@ export default function ManualAddCard({ collectionId, onAdded }) {
     setError("")
     setSubmitting(true)
 
+    const formEl = e.currentTarget
+    const formData = new FormData(formEl)
+
     try {
       let imageUrl = ""
 
@@ -58,14 +61,13 @@ export default function ManualAddCard({ collectionId, onAdded }) {
         imageUrl = publicUrlData.publicUrl
       }
 
-      const formData = new FormData(e.currentTarget)
       formData.set("image_url", imageUrl)
       formData.set("collection_id", collectionId || "")
       formData.set("is_graded", isGraded ? "yes" : "no")
 
       await addManualCard(formData)
       router.refresh()
-      e.currentTarget.reset()
+      formEl.reset()
       setImageFile(null)
       setImagePreview(null)
       setIsGraded(false)
