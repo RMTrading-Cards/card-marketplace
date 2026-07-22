@@ -63,15 +63,15 @@ function getConditionPrice(card, variant, condition) {
   return getVariantPrice(card, variant)
 }
 
-function ThresholdRow({ label, value, purchasePrice }) {
+function ThresholdRow({ label, value, purchasePrice, big }) {
   if (value == null) return null
   const diff = purchasePrice != null ? value - purchasePrice : null
 
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-      <span style={{ color: "#d1d5db" }}>{label}: {formatPrice(value)}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: big ? 15 : 12, marginTop: big ? 4 : 0 }}>
+      <span style={{ color: big ? "#ffffff" : "#d1d5db", fontWeight: big ? 700 : 400 }}>{label}: {formatPrice(value)}</span>
       {diff != null && (
-        <span style={{ color: diff >= 0 ? "#4ade80" : "#f87171", marginLeft: 8 }}>
+        <span style={{ color: diff >= 0 ? "#4ade80" : "#f87171", marginLeft: 8, fontWeight: big ? 700 : 400 }}>
           {diff >= 0 ? "+" : ""}
           {diff.toFixed(2)}
         </span>
@@ -806,8 +806,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           <ThresholdRow label="85%" value={market * 0.85} purchasePrice={purchasePrice} />
                           <ThresholdRow label="90%" value={market * 0.9} purchasePrice={purchasePrice} />
                           <ThresholdRow label="95%" value={market * 0.95} purchasePrice={purchasePrice} />
-                          <ThresholdRow label={`Market (${row.condition})`} value={market} purchasePrice={purchasePrice} />
                           <ThresholdRow label="eBay Payout (~87%)" value={payout} purchasePrice={purchasePrice} />
+                          <ThresholdRow label={`Market (${row.condition})`} value={market} purchasePrice={purchasePrice} big />
                         </div>
                       ) : (
                         <div>
