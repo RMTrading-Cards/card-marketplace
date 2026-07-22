@@ -1,16 +1,6 @@
-﻿"use server"
+"use server"
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-
-function isSameDay(dateA, dateB) {
-  const a = new Date(dateA)
-  const b = new Date(dateB)
-  return (
-    a.getUTCFullYear() === b.getUTCFullYear() &&
-    a.getUTCMonth() === b.getUTCMonth() &&
-    a.getUTCDate() === b.getUTCDate()
-  )
-}
 
 export async function searchCards(query) {
   if (!query || query.trim().length < 2) return []
@@ -106,6 +96,16 @@ export async function addCardToCollection(formData) {
 
   const nowIso = new Date().toISOString()
 
+  function isSameDay(dateA, dateB) {
+    const a = new Date(dateA)
+    const b = new Date(dateB)
+    return (
+      a.getUTCFullYear() === b.getUTCFullYear() &&
+      a.getUTCMonth() === b.getUTCMonth() &&
+      a.getUTCDate() === b.getUTCDate()
+    )
+  }
+
   if (existing && isSameDay(existing.created_at, nowIso)) {
     const { error } = await supabase
       .from("user_cards")
@@ -185,6 +185,16 @@ export async function addSealedToCollection(formData) {
   if (findError) throw new Error(findError.message)
 
   const nowIso = new Date().toISOString()
+
+  function isSameDay(dateA, dateB) {
+    const a = new Date(dateA)
+    const b = new Date(dateB)
+    return (
+      a.getUTCFullYear() === b.getUTCFullYear() &&
+      a.getUTCMonth() === b.getUTCMonth() &&
+      a.getUTCDate() === b.getUTCDate()
+    )
+  }
 
   if (existing && isSameDay(existing.created_at, nowIso)) {
     const { error } = await supabase
@@ -387,16 +397,6 @@ export async function setManualPrice(formData) {
   revalidatePath("/collection")
 }
 
-export async function updateItemCondition(formData) {
-  const supabase = await createClient()
-  const id = formData.get("id")
-  const condition = formData.get("condition")
-
-  const { error } = await supabase.from("user_cards").update({ condition }).eq("id", id)
-  if (error) throw new Error(error.message)
-  revalidatePath("/collection")
-}
-
 export async function updateItemQuantity(formData) {
   const supabase = await createClient()
   const id = formData.get("id")
@@ -405,6 +405,16 @@ export async function updateItemQuantity(formData) {
   const table = itemType === "sealed" ? "user_sealed_items" : "user_cards"
 
   const { error } = await supabase.from(table).update({ quantity }).eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function updateItemCondition(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const condition = formData.get("condition")
+
+  const { error } = await supabase.from("user_cards").update({ condition }).eq("id", id)
   if (error) throw new Error(error.message)
   revalidatePath("/collection")
 }
@@ -453,6 +463,16 @@ export async function updateItemPurchasePrice(formData) {
 
   const { data: duplicate, error: dupError } = await dupQuery.maybeSingle()
   if (dupError) throw new Error(dupError.message)
+
+  function isSameDay(dateA, dateB) {
+    const a = new Date(dateA)
+    const b = new Date(dateB)
+    return (
+      a.getUTCFullYear() === b.getUTCFullYear() &&
+      a.getUTCMonth() === b.getUTCMonth() &&
+      a.getUTCDate() === b.getUTCDate()
+    )
+  }
 
   if (duplicate && isSameDay(duplicate.created_at, current.created_at)) {
     const { error: mergeError } = await supabase
