@@ -1,5 +1,5 @@
-﻿"use client"
-import { useState, useTransition } from "react"
+"use client"
+import { useState, useTransition, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { searchSealedProducts, addSealedToCollection } from "./actions"
 
@@ -24,15 +24,8 @@ const cardBox = {
   gap: 12,
   flexWrap: "wrap",
 }
-const imageCol = {
-  flex: "1 1 40%",
-  maxWidth: 200,
-  minWidth: 110,
-}
-const infoCol = {
-  flex: "1 1 50%",
-  minWidth: 150,
-}
+const imageCol = { flex: "1 1 40%", maxWidth: 200, minWidth: 110 }
+const infoCol = { flex: "1 1 50%", minWidth: 150 }
 const inputStyle = {
   width: "100%",
   backgroundColor: "#0d0d0d",
@@ -51,6 +44,7 @@ function SealedResult({ product, onAdded, collectionId }) {
   const router = useRouter()
   const parsedPrice = purchasePrice === "" ? null : Number(purchasePrice)
   const diff = parsedPrice != null ? product.unopenedPrice - parsedPrice : null
+  const payout = ebayPayout(product.unopenedPrice)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -78,7 +72,7 @@ function SealedResult({ product, onAdded, collectionId }) {
         {product.unopenedPrice != null && (
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 11, color: "#d1d5db" }}>
-              eBay Payout (~87%): {formatPrice(ebayPayout(product.unopenedPrice))}
+              eBay Payout (~87%): {formatPrice(payout)}
             </div>
           </div>
         )}
@@ -104,9 +98,7 @@ function SealedResult({ product, onAdded, collectionId }) {
             style={inputStyle}
           >
             {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                Qty: {n}
-              </option>
+              <option key={n} value={n}>Qty: {n}</option>
             ))}
           </select>
           <input
@@ -147,6 +139,7 @@ export default function AddSealedSearch({ onAdded, collectionId }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])
   const [isPending, startTransition] = useTransition()
+  const [sortBy, setSortBy] = useState("name")
 
   function handleChange(e) {
     const value = e.target.value
@@ -163,26 +156,55 @@ export default function AddSealedSearch({ onAdded, collectionId }) {
     onAdded()
   }
 
+  const sortedResults = useMemo(() => {
+    const list = [...results]
+    if (sortBy === "name") {
+      list.sort((a, b) => a.name.localeCompare(b.name))
+    } else if (sortBy === "price_desc") {
+      list.sort((a, b) => (b.unopenedPrice ?? -1) - (a.unopenedPrice ?? -1))
+    } else if (sortBy === "price_asc") {
+      list.sort((a, b) => (a.unopenedPrice ?? Infinity) - (b.unopenedPrice ?? Infinity))
+    }
+    return list
+  }, [results, sortBy])
+
   return (
     <div>
-      <input
-        type="text"
-        placeholder="Search booster boxes, ETBs, etc..."
-        value={query}
-        onChange={handleChange}
-        style={{
-          width: "100%",
-          maxWidth: 576,
-          backgroundColor: "#141414",
-          border: "1px solid #2a2a2a",
-          color: "#ffffff",
-          borderRadius: 8,
-          padding: "12px 16px",
-          fontSize: 16,
-          marginBottom: 16,
-          boxSizing: "border-box",
-        }}
-      />
+      <div style={{ display: "flex", gap: 8, maxWidth: 576, marginBottom: 16, flexWrap: "wrap" }}>
+        <input
+          type="text"
+          placeholder="Search booster boxes, ETBs, etc..."
+          value={query}
+          onChange={handleChange}
+          style={{
+            flex: 1,
+            minWidth: 200,
+            backgroundColor: "#141414",
+            border: "1px solid #2a2a2a",
+            color: "#ffffff",
+            borderRadius: 8,
+            padding: "12px 16px",
+            fontSize: 16,
+            boxSizing: "border-box",
+          }}
+        />
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          style={{
+            backgroundColor: "#141414",
+            border: "1px solid #2a2a2a",
+            color: "#ffffff",
+            borderRadius: 8,
+            padding: "0 12px",
+            fontSize: 16,
+          }}
+        >
+          <option value="name">Name A → Z</option>
+          <option value="price_desc">Price High → Low</option>
+          <option value="price_asc">Price Low → High</option>
+        </select>
+      </div>
       {isPending && <p style={{ color: "#ffffff", marginBottom: 16 }}>Searching...</p>}
       <div
         style={{
@@ -191,7 +213,7 @@ export default function AddSealedSearch({ onAdded, collectionId }) {
           gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
         }}
       >
-        {results.map((product) => (
+        {sortedResults.map((product) => (
           <SealedResult key={product.id} product={product} onAdded={handleAdded} collectionId={collectionId} />
         ))}
       </div>
