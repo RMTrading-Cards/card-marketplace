@@ -779,3 +779,58 @@ export async function refreshSealedData() {
   revalidatePath("/collection")
   return json
 }
+
+export async function getCardConditionPrice(cardId, variant, condition) {
+  const supabase = await createClient()
+  const { data: card } = await supabase
+    .from("cards")
+    .select("raw_skus, region, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil")
+    .eq("id", cardId)
+    .single()
+
+  if (!card) return null
+
+  function getVariantPrice() {
+    switch (variant) {
+      case "Normal": return card.price_normal
+      case "Holofoil": return card.price_holofoil
+      case "Reverse Holofoil": return card.price_reverse_holofoil
+      case "1st Edition Holofoil": return card.price_1st_edition_holofoil
+      default: return card.tcgplayer_market_price
+    }
+  }
+
+  if (!card.raw_skus) return getVariantPrice()
+
+  const wantLang = card.region === "JP" ? "JP" : "EN"
+  const rows = Object.values(card.raw_skus)
+  const matches = rows.filter((r) => r.var === variant && r.cnd === condition)
+  const best = matches.find((r) => r.lng === wantLang) || matches[0]
+  return best?.mkt ?? getVariantPrice()
+}
+
+export async function mergeCollectionIntoMain(formData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const id = formData.get("id")
+
+  const { data: target } = await supabase
+    .from("collections")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (target?.is_main) throw new Error("This is already your Main Collection")
+
+  const main = await getOrCreateMainCollection()
+
+  await supabase.from("user_cards").update({ collection_id: main.id }).eq("collection_id", id)
+  await supabase.from("user_sealed_items").update({ collection_id: main.id }).eq("collection_id", id)
+
+  const { error } = await supabase.from("collections").delete().eq("id", id)
+  if (error) throw new Error(error.message)
+
+  revalidatePath("/collection")
+}

@@ -1,17 +1,16 @@
 import { createClient } from "@/lib/supabase/server"
 import CollectionTabs from "./CollectionTabs"
 import ProfileMenu from "./ProfileMenu"
-import { getOrCreateProfile, getOrCreateMainCollection, listCollections, getManualAddOptions } from "./actions"
+import { getOrCreateProfile, getOrCreateMainCollection, listCollections } from "./actions"
 
 export default async function Collection() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [profile, , collections, manualAddOptions] = await Promise.all([
+  const [profile, , collections] = await Promise.all([
     getOrCreateProfile(),
     getOrCreateMainCollection(),
     listCollections(),
-    getManualAddOptions(),
   ])
 
   const mainCollection = collections.find((c) => c.is_main)
@@ -21,7 +20,7 @@ export default async function Collection() {
     supabase
       .from("user_cards")
       .select(
-        "id, quantity, purchase_price, condition, collection_id, manual_price, variant, created_at, sold_price, sold_at, cards(name, image_small, tcgplayer_market_price, set_name, card_number, set_total, release_year, rarity, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region)"
+        "id, quantity, purchase_price, condition, collection_id, manual_price, variant, created_at, sold_price, sold_at, cards(name, image_small, tcgplayer_market_price, set_name, card_number, set_total, release_year, rarity, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil)"
       )
       .eq("user_id", user!.id)
       .order("created_at", { ascending: false }),
@@ -51,7 +50,6 @@ export default async function Collection() {
           mySealed={mySealed || []}
           collections={collections}
           mainCollectionId={mainCollection?.id}
-          manualAddOptions={manualAddOptions}
         />
       </div>
     </div>

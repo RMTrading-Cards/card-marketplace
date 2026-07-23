@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createCollection, renameCollection, deleteCollection, setMainCollection, getOrCreateShareSlug } from "./actions"
+import { createCollection, renameCollection, deleteCollection, setMainCollection, getOrCreateShareSlug, mergeCollectionIntoMain } from "./actions"
 
 export default function CollectionSelector({ collections, selectedIds, onSelectionChange, sellingMode, onToggleSelling }) {
   const [managing, setManaging] = useState(false)
@@ -77,6 +77,18 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
     router.refresh()
   }
 
+  async function handleMerge(id) {
+    if (!confirm("Merge this collection into your Main Collection? This collection will then be deleted.")) return
+    const formData = new FormData()
+    formData.set("id", id)
+    await mergeCollectionIntoMain(formData)
+    if (selectedIds.includes(id)) {
+      const main = collections.find((c) => c.is_main)
+      onSelectionChange([main?.id].filter(Boolean))
+    }
+    router.refresh()
+  }
+
   async function handleGetShareLink() {
     if (!singleSelectedCollection) return
     if (sharePanelOpen) {
@@ -139,7 +151,11 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
               <div style={{ borderTop: "1px solid #222", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
                 {collections.map((c) => (
                   <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, color: "#ffffff", fontSize: 14, cursor: "pointer" }}>
-                    <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleOne(c.id)} />
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(c.id)}
+                      onChange={() => toggleOne(c.id)}
+                    />
                     {c.name}{c.is_main ? " (Main)" : ""}
                   </label>
                 ))}
@@ -207,7 +223,7 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
       )}
 
       {managing && (
-        <div style={{ marginTop: 12, backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 16, maxWidth: 420 }}>
+        <div style={{ marginTop: 12, backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 16, maxWidth: 480 }}>
           {collections.map((c) => (
             <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid #222", flexWrap: "wrap" }}>
               {renamingId === c.id ? (
@@ -229,12 +245,29 @@ export default function CollectionSelector({ collections, selectedIds, onSelecti
                     Rename
                   </button>
                   {!c.is_main && (
-                    <button onClick={() => handleSetMain(c.id)} className="rmt-tab" style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#fff", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}>
+                    <button
+                      onClick={() => handleMerge(c.id)}
+                      className="rmt-tab"
+                      style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}
+                    >
+                      Merge with Main
+                    </button>
+                  )}
+                  {!c.is_main && (
+                    <button
+                      onClick={() => handleSetMain(c.id)}
+                      className="rmt-tab"
+                      style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#fff", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}
+                    >
                       Set Main
                     </button>
                   )}
                   {!c.is_main && (
-                    <button onClick={() => handleDelete(c.id)} className="rmt-remove-btn" style={{ backgroundColor: "#2a1414", color: "#f87171", border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}>
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      className="rmt-remove-btn"
+                      style={{ backgroundColor: "#2a1414", color: "#f87171", border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" }}
+                    >
                       Delete
                     </button>
                   )}

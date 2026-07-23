@@ -16,6 +16,7 @@ import {
   sellSealedItem,
   clearSoldHistory,
   removeSoldItem,
+  getCardConditionPrice,
 } from "./actions"
 
 const EBAY_FVF_RATE = 0.1325
@@ -54,13 +55,8 @@ function getVariantPrice(card, variant) {
   }
 }
 
-function getConditionPrice(card, variant, condition) {
-  if (!card?.raw_skus) return getVariantPrice(card, variant)
-  const wantLang = card.region === "JP" ? "JP" : "EN"
-  const rows = Object.values(card.raw_skus)
-  const matches = rows.filter((r) => r.var === variant && r.cnd === condition)
-  const best = matches.find((r) => r.lng === wantLang) || matches[0]
-  if (best?.mkt != null) return best.mkt
+function getConditionPrice(card, variant, condition, override) {
+  if (override != null) return override
   return getVariantPrice(card, variant)
 }
 
@@ -209,8 +205,7 @@ function AskPriceInput({ id, itemType, currentValue }) {
   )
 }
 
-function ConditionEditor({ id, condition }) {
-  const router = useRouter()
+function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate }) {
   const [value, setValue] = useState(condition)
   const [submitting, setSubmitting] = useState(false)
 
@@ -226,8 +221,12 @@ function ConditionEditor({ id, condition }) {
     formData.set("id", id)
     formData.set("condition", newCondition)
     await updateItemCondition(formData)
+
+    if (cardId) {
+      const newPrice = await getCardConditionPrice(cardId, variant, newCondition)
+      onPriceUpdate?.(id, newPrice)
+    }
     setSubmitting(false)
-    router.refresh()
   }
 
   return (
@@ -459,10 +458,11 @@ const tabButtonBase = { padding: "8px 20px", borderRadius: 6, fontSize: 14, font
 const controlStyle = { backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 8, padding: "10px 14px", fontSize: 16, boxSizing: "border-box" }
 const statBox = { backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 20px", minWidth: 160 }
 
-export default function CollectionTabs({ myCards, mySealed, collections, mainCollectionId, manualAddOptions }) {
+export default function CollectionTabs({ myCards, mySealed, collections, mainCollectionId }) {
   const router = useRouter()
 
   const [tab, setTab] = useState("collection")
+  const [priceOverrides, setPriceOverrides] = useState({})
   const [sellingMode, setSellingMode] = useState(false)
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
@@ -486,7 +486,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       name: item.cards?.name || "",
       subLabel: item.cards?.set_name,
       image: item.cards?.image_small,
-      market: getConditionPrice(item.cards, item.variant, item.condition),
+      market: getConditionPrice(item.cards, item.variant, item.condition, priceOverrides[item.id]),
       manualPrice: item.manual_price,
       quantity: item.quantity,
       purchasePrice: item.purchase_price,
@@ -514,7 +514,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       soldAt: item.sold_at,
     }))
     return [...cardRows, ...sealedRows]
-  }, [myCards, mySealed])
+  }, [myCards, mySealed, priceOverrides])
 
   const activeInCollection = useMemo(() => combined.filter((row) => selectedCollectionIds.includes(row.collectionId) && row.soldAt == null), [combined, selectedCollectionIds])
   const soldInCollection = useMemo(() => combined.filter((row) => selectedCollectionIds.includes(row.collectionId) && row.soldAt != null).sort((a, b) => new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime()), [combined, selectedCollectionIds])
@@ -724,7 +724,13 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       <div style={{ fontSize: 13, marginTop: 6, marginBottom: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <QuantityEditor id={row.id} itemType="card" quantity={row.quantity} />
                         <span>· Condition:</span>
-                        <ConditionEditor id={row.id} condition={row.condition} />
+                        <ConditionEditor
+                          id={row.id}
+                          condition={row.condition}
+                          cardId={card?.id}
+                          variant={row.variant}
+                          onPriceUpdate={(rowId, price) => setPriceOverrides((prev) => ({ ...prev, [rowId]: price }))}
+                        />
                         <span>·</span>
                         <EditablePaid id={row.id} itemType="card" purchasePrice={purchasePrice} />
                       </div>
@@ -901,7 +907,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
       {tab === "cards" && <AddCardsSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
       {tab === "sealed" && <AddSealedSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
-      {tab === "manual" && <ManualAddCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} manualAddOptions={manualAddOptions} />}
+      {tab === "manual" && <ManualAddCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
     </div>
   )
 }

@@ -1,8 +1,8 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { addManualCard } from "./actions"
+import { addManualCard, getManualAddOptions } from "./actions"
 
 const inputStyle = {
   width: "100%",
@@ -17,15 +17,22 @@ const inputStyle = {
 const labelStyle = { color: "#9ca3af", fontSize: 12, marginBottom: 4, display: "block" }
 const fieldWrap = { marginBottom: 12 }
 
-export default function ManualAddCard({ collectionId, onAdded, manualAddOptions }) {
-  const setNames = manualAddOptions?.setNames || []
-  const rarities = manualAddOptions?.rarities || []
+export default function ManualAddCard({ collectionId, onAdded }) {
   const router = useRouter()
+  const [setNames, setSetNames] = useState([])
+  const [rarities, setRarities] = useState([])
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [isGraded, setIsGraded] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    getManualAddOptions().then((opts) => {
+      setSetNames(opts?.setNames || [])
+      setRarities(opts?.rarities || [])
+    })
+  }, [])
 
   function handleImageChange(e) {
     const file = e.target.files?.[0]
