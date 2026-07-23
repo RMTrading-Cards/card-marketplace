@@ -8,7 +8,7 @@ function buildNamePattern(token) {
   return token.replace(/[\u2019\u2018']/g, "_")
 }
 
-export async function searchCards(query, sortBy = "name", page = 1, pageSize = 20) {
+export async function searchCards(query, sortBy = "name", page = 1, pageSize = 20, regionFilter = null) {
   if (!query || query.trim().length < 2) return { results: [], totalCount: 0 }
 
   const supabase = await createClient()
@@ -37,6 +37,10 @@ export async function searchCards(query, sortBy = "name", page = 1, pageSize = 2
     q = q.ilike("card_number", `%${num}%`)
   }
 
+  if (regionFilter) {
+    q = q.eq("region", regionFilter)
+  }
+
   if (sortBy === "price_desc") {
     q = q.order("tcgplayer_market_price", { ascending: false, nullsFirst: false })
   } else if (sortBy === "price_asc") {
@@ -58,7 +62,7 @@ export async function searchCards(query, sortBy = "name", page = 1, pageSize = 2
   return { results: data || [], totalCount: count || 0 }
 }
 
-export async function searchSealedProducts(query, sortBy = "name", page = 1, pageSize = 20) {
+export async function searchSealedProducts(query, sortBy = "name", page = 1, pageSize = 20, regionFilter = null) {
   if (!query || query.trim().length < 2) return { results: [], totalCount: 0 }
 
   const supabase = await createClient()
@@ -67,6 +71,10 @@ export async function searchSealedProducts(query, sortBy = "name", page = 1, pag
     .from("sealed_products")
     .select("*", { count: "exact" })
     .or(`name.ilike.%${query}%,set_name.ilike.%${query}%`)
+
+  if (regionFilter) {
+    q = q.eq("region", regionFilter)
+  }
 
   if (sortBy === "price_desc") {
     q = q.order("market_price", { ascending: false, nullsFirst: false })
@@ -433,6 +441,32 @@ export async function setMainCollection(formData) {
   revalidatePath("/collection")
 }
 
+export async function mergeCollectionIntoMain(formData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const id = formData.get("id")
+
+  const { data: target } = await supabase
+    .from("collections")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (target?.is_main) throw new Error("This is already your Main Collection")
+
+  const main = await getOrCreateMainCollection()
+
+  await supabase.from("user_cards").update({ collection_id: main.id }).eq("collection_id", id)
+  await supabase.from("user_sealed_items").update({ collection_id: main.id }).eq("collection_id", id)
+
+  const { error } = await supabase.from("collections").delete().eq("id", id)
+  if (error) throw new Error(error.message)
+
+  revalidatePath("/collection")
+}
+
 export async function setManualPrice(formData) {
   const supabase = await createClient()
   const id = formData.get("id")
@@ -750,36 +784,6 @@ export async function getManualAddOptions() {
   }
 }
 
-export async function refreshCardsData() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user || user.id !== process.env.ADMIN_USER_ID) {
-    throw new Error("Not authorized")
-  }
-
-  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-cards", {
-    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-  })
-  const json = await res.json()
-  revalidatePath("/collection")
-  return json
-}
-
-export async function refreshSealedData() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user || user.id !== process.env.ADMIN_USER_ID) {
-    throw new Error("Not authorized")
-  }
-
-  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-sealed", {
-    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-  })
-  const json = await res.json()
-  revalidatePath("/collection")
-  return json
-}
-
 export async function getCardConditionPrice(cardId, variant, condition) {
   const supabase = await createClient()
   const { data: card } = await supabase
@@ -809,28 +813,32 @@ export async function getCardConditionPrice(cardId, variant, condition) {
   return best?.mkt ?? getVariantPrice()
 }
 
-export async function mergeCollectionIntoMain(formData) {
+export async function refreshCardsData() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Not authenticated")
+  if (!user || user.id !== process.env.ADMIN_USER_ID) {
+    throw new Error("Not authorized")
+  }
 
-  const id = formData.get("id")
-
-  const { data: target } = await supabase
-    .from("collections")
-    .select("*")
-    .eq("id", id)
-    .single()
-
-  if (target?.is_main) throw new Error("This is already your Main Collection")
-
-  const main = await getOrCreateMainCollection()
-
-  await supabase.from("user_cards").update({ collection_id: main.id }).eq("collection_id", id)
-  await supabase.from("user_sealed_items").update({ collection_id: main.id }).eq("collection_id", id)
-
-  const { error } = await supabase.from("collections").delete().eq("id", id)
-  if (error) throw new Error(error.message)
-
+  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-cards", {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  })
+  const json = await res.json()
   revalidatePath("/collection")
+  return json
+}
+
+export async function refreshSealedData() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.id !== process.env.ADMIN_USER_ID) {
+    throw new Error("Not authorized")
+  }
+
+  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-sealed", {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  })
+  const json = await res.json()
+  revalidatePath("/collection")
+  return json
 }

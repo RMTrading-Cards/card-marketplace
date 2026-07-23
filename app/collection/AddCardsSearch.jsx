@@ -9,21 +9,33 @@ function formatPrice(n) {
 
 const EBAY_FVF_RATE = 0.1325
 const EBAY_PER_ORDER_FEE = 0.40
+const CONDITION_LABELS = {
+  NM: "Near Mint",
+  LP: "Lightly Played",
+  MP: "Moderately Played",
+  HP: "Heavily Played",
+  DMG: "Damaged",
+}
 
 function ebayPayout(value) {
   if (value == null) return null
   return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
 }
 
-function getConditionPrice(card, variant, condition) {
-  const basePrice = variant.price
-  if (!card?.raw_skus) return basePrice
+function getAllConditionPrices(card, variant) {
+  const base = variant.price
+  const result = { NM: base, LP: base, MP: base, HP: base, DMG: base }
+  if (!card?.raw_skus) return result
+
   const wantLang = card.region === "JP" ? "JP" : "EN"
   const rows = Object.values(card.raw_skus)
-  const matches = rows.filter((r) => r.var === variant.key && r.cnd === condition)
-  const best = matches.find((r) => r.lng === wantLang) || matches[0]
-  if (best?.mkt != null) return best.mkt
-  return basePrice
+
+  for (const cond of Object.keys(result)) {
+    const matches = rows.filter((r) => r.var === variant.key && r.cnd === cond)
+    const best = matches.find((r) => r.lng === wantLang) || matches[0]
+    if (best?.mkt != null) result[cond] = best.mkt
+  }
+  return result
 }
 
 function getVariants(card) {
@@ -77,7 +89,8 @@ function CardResult({ card, variant, onAdded, collectionId }) {
   const parsedPrice = purchasePrice === "" ? null : Number(purchasePrice)
   const thresholds = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 
-  const market = getConditionPrice(card, variant, condition)
+  const conditionPrices = getAllConditionPrices(card, variant)
+  const market = conditionPrices[condition]
   const payout = ebayPayout(market)
 
   async function handleSubmit(e) {
@@ -172,11 +185,11 @@ function CardResult({ card, variant, onAdded, collectionId }) {
             onChange={(e) => setCondition(e.target.value)}
             style={inputStyle}
           >
-            <option value="NM">Near Mint</option>
-            <option value="LP">Lightly Played</option>
-            <option value="MP">Moderately Played</option>
-            <option value="HP">Heavily Played</option>
-            <option value="DMG">Damaged</option>
+            {Object.keys(CONDITION_LABELS).map((cond) => (
+              <option key={cond} value={cond}>
+                {CONDITION_LABELS[cond]}: {formatPrice(conditionPrices[cond])}
+              </option>
+            ))}
           </select>
           <input
             name="purchase_price"
@@ -217,14 +230,22 @@ export default function AddCardsSearch({ onAdded, collectionId }) {
   const [results, setResults] = useState([])
   const [totalCount, setTotalCount] = useState(0)
   const [isPending, startTransition] = useTransition()
-  const [sortBy, setSortBy] = useState("name")
+  const [sortBy, setSortBy] = useState("price_desc")
   const [pageSize, setPageSize] = useState(20)
   const [page, setPage] = useState(1)
+  const [includeEnglish, setIncludeEnglish] = useState(true)
+  const [includeJP, setIncludeJP] = useState(true)
   const debounceRef = useRef(null)
+
+  function getRegionFilter() {
+    if (includeEnglish && !includeJP) return "US"
+    if (!includeEnglish && includeJP) return "JP"
+    return null
+  }
 
   function runSearch(value, sort, pg, size) {
     startTransition(async () => {
-      const response = await searchCards(value, sort, pg, size)
+      const response = await searchCards(value, sort, pg, size, getRegionFilter())
       setResults(response?.results || [])
       setTotalCount(response?.totalCount || 0)
     })
@@ -252,6 +273,15 @@ export default function AddCardsSearch({ onAdded, collectionId }) {
     if (query.length >= 2) runSearch(query, sortBy, 1, newSize)
   }
 
+  function handleRegionToggle(which) {
+    if (which === "en") setIncludeEnglish((prev) => !prev)
+    else setIncludeJP((prev) => !prev)
+    setPage(1)
+    setTimeout(() => {
+      if (query.length >= 2) runSearch(query, sortBy, 1, pageSize)
+    }, 0)
+  }
+
   function goToPage(newPage) {
     setPage(newPage)
     runSearch(query, sortBy, newPage, pageSize)
@@ -269,7 +299,7 @@ export default function AddCardsSearch({ onAdded, collectionId }) {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, maxWidth: 700, marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, maxWidth: 700, marginBottom: 12, flexWrap: "wrap" }}>
         <input
           type="text"
           placeholder="Search cards..."
@@ -288,15 +318,26 @@ export default function AddCardsSearch({ onAdded, collectionId }) {
           }}
         />
         <select value={sortBy} onChange={(e) => handleSortChange(e.target.value)} style={controlStyle}>
-          <option value="name">Name A → Z</option>
           <option value="price_desc">Price High → Low</option>
           <option value="price_asc">Price Low → High</option>
+          <option value="name">Name A → Z</option>
         </select>
         <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} style={controlStyle}>
           <option value={20}>Show 20</option>
           <option value={50}>Show 50</option>
           <option value={100}>Show 100</option>
         </select>
+      </div>
+
+      <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+        <label style={{ color: "#ffffff", fontSize: 14, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={includeEnglish} onChange={() => handleRegionToggle("en")} />
+          English Only
+        </label>
+        <label style={{ color: "#ffffff", fontSize: 14, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={includeJP} onChange={() => handleRegionToggle("jp")} />
+          JP Only
+        </label>
       </div>
 
       {isPending && <p style={{ color: "#ffffff", marginBottom: 16 }}>Searching...</p>}
