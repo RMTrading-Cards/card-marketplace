@@ -17,6 +17,7 @@ import {
   clearSoldHistory,
   removeSoldItem,
   getCardConditionPrice,
+  moveItemToCollection,
 } from "./actions"
 
 const EBAY_FVF_RATE = 0.1325
@@ -451,6 +452,42 @@ function ActualProfitBox({ label, value, onClear }) {
   )
 }
 
+function MoveToMainButton({ id, itemType, mainCollectionId }) {
+  const router = useRouter()
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleClick() {
+    setSubmitting(true)
+    const formData = new FormData()
+    formData.set("id", id)
+    formData.set("item_type", itemType)
+    formData.set("target_collection_id", mainCollectionId)
+    await moveItemToCollection(formData)
+    setSubmitting(false)
+    router.refresh()
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={submitting}
+      className="rmt-tab"
+      style={{
+        marginTop: 4,
+        backgroundColor: "#0d0d0d",
+        border: "1px solid #2a2a2a",
+        color: "#F2B705",
+        borderRadius: 6,
+        padding: "3px 8px",
+        fontSize: 11,
+        cursor: submitting ? "default" : "pointer",
+      }}
+    >
+      {submitting ? "Moving..." : "Move to Main"}
+    </button>
+  )
+}
+
 const cardBox = { backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12, display: "flex", gap: 12, flexWrap: "wrap" }
 const imageCol = { flex: "1 1 40%", maxWidth: 200, minWidth: 110 }
 const infoCol = { flex: "1 1 50%", minWidth: 150, color: "#ffffff" }
@@ -705,6 +742,11 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       {held != null && (
                         <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>Held for: {held} day(s)</div>
                       )}
+                      {mainCollectionId && row.collectionId !== mainCollectionId && (
+                        <div style={{ textAlign: "center" }}>
+                          <MoveToMainButton id={row.id} itemType="card" mainCollectionId={mainCollectionId} />
+                        </div>
+                      )}
                     </div>
                     <div style={infoCol}>
                       <strong>
@@ -779,6 +821,11 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     {row.image && <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />}
                     {held != null && (
                       <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, textAlign: "center" }}>Held for: {held} day(s)</div>
+                    )}
+                    {mainCollectionId && row.collectionId !== mainCollectionId && (
+                      <div style={{ textAlign: "center" }}>
+                        <MoveToMainButton id={row.id} itemType="sealed" mainCollectionId={mainCollectionId} />
+                      </div>
                     )}
                   </div>
                   <div style={infoCol}>

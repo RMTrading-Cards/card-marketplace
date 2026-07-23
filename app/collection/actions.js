@@ -842,3 +842,31 @@ export async function refreshSealedData() {
   revalidatePath("/collection")
   return json
 }
+
+export async function moveItemToCollection(formData) {
+  const supabase = await createClient()
+  const id = formData.get("id")
+  const itemType = formData.get("item_type")
+  const targetCollectionId = formData.get("target_collection_id")
+  const table = itemType === "sealed" ? "user_sealed_items" : "user_cards"
+
+  const { error } = await supabase.from(table).update({ collection_id: targetCollectionId }).eq("id", id)
+  if (error) throw new Error(error.message)
+  revalidatePath("/collection")
+}
+
+export async function getSyncStatus() {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("sync_state")
+    .select("id, last_run_at")
+    .in("id", ["cards_sync_tcg", "sealed_sync_tcg"])
+
+  const cardsRow = data?.find((r) => r.id === "cards_sync_tcg")
+  const sealedRow = data?.find((r) => r.id === "sealed_sync_tcg")
+
+  return {
+    cardsLastRun: cardsRow?.last_run_at || null,
+    sealedLastRun: sealedRow?.last_run_at || null,
+  }
+}

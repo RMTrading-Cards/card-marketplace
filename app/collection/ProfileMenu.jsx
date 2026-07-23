@@ -1,8 +1,18 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { updateUsername, refreshCardsData, refreshSealedData } from "./actions"
+import { updateUsername, refreshCardsData, refreshSealedData, getSyncStatus } from "./actions"
+
+function formatSyncTime(iso) {
+  if (!iso) return "Never"
+  const d = new Date(iso)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  return `${yyyy}:${mm}:${dd} at ${time}`
+}
 
 export default function ProfileMenu({ email, username, isAdmin }) {
   const [open, setOpen] = useState(false)
@@ -10,7 +20,14 @@ export default function ProfileMenu({ email, username, isAdmin }) {
   const [refreshingCards, setRefreshingCards] = useState(false)
   const [refreshingSealed, setRefreshingSealed] = useState(false)
   const [refreshResult, setRefreshResult] = useState("")
+  const [syncStatus, setSyncStatus] = useState(null)
   const router = useRouter()
+
+  useEffect(() => {
+    if (open && !syncStatus) {
+      getSyncStatus().then(setSyncStatus)
+    }
+  }, [open, syncStatus])
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -32,6 +49,8 @@ export default function ProfileMenu({ email, username, isAdmin }) {
     try {
       const result = await refreshCardsData()
       setRefreshResult(`Cards: synced ${result.cardsSynced ?? 0} (${result.nextIndex}/${result.totalSets} sets)`)
+      const status = await getSyncStatus()
+      setSyncStatus(status)
       router.refresh()
     } catch (err) {
       setRefreshResult(`Error: ${err.message}`)
@@ -46,6 +65,8 @@ export default function ProfileMenu({ email, username, isAdmin }) {
     try {
       const result = await refreshSealedData()
       setRefreshResult(`Sealed: synced ${result.productsSynced ?? 0} (${result.nextIndex}/${result.totalSets} sets)`)
+      const status = await getSyncStatus()
+      setSyncStatus(status)
       router.refresh()
     } catch (err) {
       setRefreshResult(`Error: ${err.message}`)
@@ -83,7 +104,7 @@ export default function ProfileMenu({ email, username, isAdmin }) {
             border: "1px solid #2a2a2a",
             borderRadius: 8,
             padding: 16,
-            minWidth: 260,
+            minWidth: 280,
             zIndex: 20,
           }}
         >
@@ -194,6 +215,22 @@ export default function ProfileMenu({ email, username, isAdmin }) {
               )}
             </div>
           )}
+
+          <div style={{ marginBottom: 12, paddingTop: 12, borderTop: "1px solid #2a2a2a" }}>
+            <div style={{ color: "#9ca3af", fontSize: 11, marginBottom: 6 }}>Last data sync</div>
+            {syncStatus ? (
+              <>
+                <div style={{ color: "#ffffff", fontSize: 12, marginBottom: 2 }}>
+                  Cards: {formatSyncTime(syncStatus.cardsLastRun)}
+                </div>
+                <div style={{ color: "#ffffff", fontSize: 12 }}>
+                  Sealed: {formatSyncTime(syncStatus.sealedLastRun)}
+                </div>
+              </>
+            ) : (
+              <div style={{ color: "#9ca3af", fontSize: 12 }}>Loading...</div>
+            )}
+          </div>
 
           <button
             onClick={handleSignOut}
