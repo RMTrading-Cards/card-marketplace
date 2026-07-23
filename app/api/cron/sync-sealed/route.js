@@ -26,6 +26,22 @@ export async function GET(request) {
     return new Response("Unauthorized", { status: 401 })
   }
 
+  const { searchParams } = new URL(request.url)
+  const isScheduled = searchParams.get("scheduled") === "1"
+
+  if (isScheduled) {
+    const easternHour = Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        hour: "numeric",
+        hour12: false,
+      }).format(new Date())
+    )
+    if (easternHour !== 10) {
+      return NextResponse.json({ skipped: true, reason: `Not 10am Eastern yet (currently ${easternHour}:00 ET)` })
+    }
+  }
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY

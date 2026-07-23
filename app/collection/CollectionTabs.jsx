@@ -5,6 +5,7 @@ import AddCardsSearch from "./AddCardsSearch"
 import AddSealedSearch from "./AddSealedSearch"
 import ManualAddCard from "./ManualAddCard"
 import CollectionSelector from "./CollectionSelector"
+import PriceHistoryModal from "./PriceHistoryModal"
 import {
   removeCardFromCollection,
   removeSealedFromCollection,
@@ -500,6 +501,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
   const [tab, setTab] = useState("collection")
   const [priceOverrides, setPriceOverrides] = useState({})
+  const [historyModal, setHistoryModal] = useState(null)
   const [sellingMode, setSellingMode] = useState(false)
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
@@ -747,6 +749,15 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           <MoveToMainButton id={row.id} itemType="card" mainCollectionId={mainCollectionId} />
                         </div>
                       )}
+                      <div style={{ textAlign: "center" }}>
+                        <button
+                          onClick={() => setHistoryModal({ cardId: card?.id, variant: row.variant || "Standard", name: card?.name })}
+                          className="rmt-tab"
+                          style={{ marginTop: 4, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}
+                        >
+                          📈 More Data
+                        </button>
+                      </div>
                     </div>
                     <div style={infoCol}>
                       <strong>
@@ -955,6 +966,15 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       {tab === "cards" && <AddCardsSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
       {tab === "sealed" && <AddSealedSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
       {tab === "manual" && <ManualAddCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
+
+      {historyModal && (
+        <PriceHistoryModal
+          cardId={historyModal.cardId}
+          variant={historyModal.variant}
+          cardName={historyModal.name}
+          onClose={() => setHistoryModal(null)}
+        />
+      )}
     </div>
   )
 }

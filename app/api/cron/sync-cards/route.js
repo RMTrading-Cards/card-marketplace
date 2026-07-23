@@ -41,6 +41,22 @@ export async function GET(request) {
     return new Response("Unauthorized", { status: 401 })
   }
 
+  const { searchParams } = new URL(request.url)
+  const isScheduled = searchParams.get("scheduled") === "1"
+
+  if (isScheduled) {
+    const easternHour = Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        hour: "numeric",
+        hour12: false,
+      }).format(new Date())
+    )
+    if (easternHour !== 9) {
+      return NextResponse.json({ skipped: true, reason: `Not 9am Eastern yet (currently ${easternHour}:00 ET)` })
+    }
+  }
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -76,6 +92,7 @@ export async function GET(request) {
   const startTime = Date.now()
   const setsProcessed = []
   let totalSynced = 0
+  const today = new Date().toISOString().slice(0, 10)
 
   while (Date.now() - startTime < DAILY_TIME_BUDGET_MS) {
     if (index >= allSets.length) {
@@ -95,10 +112,21 @@ export async function GET(request) {
       const prices = pricingJson?.prices || {}
       const skuProducts = skusJson?.products || {}
 
-      const rows = products.map((p) => {
+      const rows = []
+      const historyRows = []
+
+      for (const p of products) {
         const tcg = prices[String(p.id)]?.tcg || {}
-        return {
-          id: `tcg${set.category}-${p.id}`,
+        const cardId = `tcg${set.category}-${p.id}`
+
+        const priceNormal = tcg["Normal"]?.market ?? null
+        const priceHolofoil = tcg["Holofoil"]?.market ?? null
+        const priceReverseHolofoil = tcg["Reverse Holofoil"]?.market ?? null
+        const price1stEdHolofoil = tcg["1st Edition Holofoil"]?.market ?? tcg["1st Edition"]?.market ?? null
+        const marketPrice = pickPrice(tcg, ["Holofoil", "Normal", "Reverse Holofoil"])
+
+        rows.push({
+          id: cardId,
           name: p.name,
           set_name: p.set_name || set.setName,
           set_id: String(set.setId),
@@ -110,19 +138,41 @@ export async function GET(request) {
           region: set.region,
           set_abbr: p.set_abbr || set.setAbbr,
           tcgplayer_url: p.tcgplayer_url,
-          tcgplayer_market_price: pickPrice(tcg, ["Holofoil", "Normal", "Reverse Holofoil"]),
-          price_normal: tcg["Normal"]?.market ?? null,
-          price_holofoil: tcg["Holofoil"]?.market ?? null,
-          price_reverse_holofoil: tcg["Reverse Holofoil"]?.market ?? null,
-          price_1st_edition_holofoil:
-            tcg["1st Edition Holofoil"]?.market ?? tcg["1st Edition"]?.market ?? null,
+          tcgplayer_market_price: marketPrice,
+          price_normal: priceNormal,
+          price_holofoil: priceHolofoil,
+          price_reverse_holofoil: priceReverseHolofoil,
+          price_1st_edition_holofoil: price1stEdHolofoil,
           raw_skus: skuProducts[String(p.id)] || null,
           synced_at: new Date().toISOString(),
+        })
+
+        const variantPrices = [
+          ["Normal", priceNormal],
+          ["Holofoil", priceHolofoil],
+          ["Reverse Holofoil", priceReverseHolofoil],
+          ["1st Edition Holofoil", price1stEdHolofoil],
+        ]
+        let anyVariantSet = false
+        for (const [variant, price] of variantPrices) {
+          if (price != null) {
+            anyVariantSet = true
+            historyRows.push({ card_id: cardId, variant, price, recorded_at: today })
+          }
         }
-      })
+        if (!anyVariantSet && marketPrice != null) {
+          historyRows.push({ card_id: cardId, variant: "Standard", price: marketPrice, recorded_at: today })
+        }
+      }
 
       const { error } = await supabase.from("cards").upsert(rows)
       if (!error) totalSynced += rows.length
+
+      if (historyRows.length > 0) {
+        await supabase
+          .from("card_price_history")
+          .upsert(historyRows, { onConflict: "card_id,variant,recorded_at" })
+      }
     }
 
     setsProcessed.push(`${set.region}:${set.setName}`)

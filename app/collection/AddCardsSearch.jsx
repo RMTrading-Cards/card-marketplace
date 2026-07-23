@@ -85,6 +85,7 @@ function CardResult({ card, variant, onAdded, collectionId }) {
   const [condition, setCondition] = useState("NM")
   const [purchasePrice, setPurchasePrice] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const router = useRouter()
   const parsedPrice = purchasePrice === "" ? null : Number(purchasePrice)
   const thresholds = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
@@ -127,6 +128,13 @@ function CardResult({ card, variant, onAdded, collectionId }) {
           )}
           <span style={{ color: "#9ca3af", fontSize: 12 }}>· {variant.key}</span>
         </div>
+        <button
+          onClick={() => setShowHistory(true)}
+          className="rmt-tab"
+          style={{ marginBottom: 8, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}
+        >
+          📈 More Data
+        </button>
         <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8, display: "flex", justifyContent: "space-between", maxWidth: 220 }}>
           <span>Market: {formatPrice(market)}</span>
           {market != null && parsedPrice != null && (
@@ -221,10 +229,19 @@ function CardResult({ card, variant, onAdded, collectionId }) {
           </button>
         </form>
       </div>
+      {showHistory && (
+        <PriceHistoryModal
+          cardId={card.id}
+          variant={variant.key}
+          cardName={card.name}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </div>
   )
 }
 
+import PriceHistoryModal from "./PriceHistoryModal"
 export default function AddCardsSearch({ onAdded, collectionId }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])

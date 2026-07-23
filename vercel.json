@@ -1,6 +1,8 @@
 {
   "crons": [
-    { "path": "/api/cron/sync-cards", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/sync-sealed", "schedule": "0 7 * * *" }
+    { "path": "/api/cron/sync-cards?scheduled=1", "schedule": "0 13 * * *" },
+    { "path": "/api/cron/sync-cards?scheduled=1", "schedule": "0 14 * * *" },
+    { "path": "/api/cron/sync-sealed?scheduled=1", "schedule": "0 14 * * *" },
+    { "path": "/api/cron/sync-sealed?scheduled=1", "schedule": "0 15 * * *" }
   ]
 }

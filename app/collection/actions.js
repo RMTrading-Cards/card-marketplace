@@ -870,3 +870,27 @@ export async function getSyncStatus() {
     sealedLastRun: sealedRow?.last_run_at || null,
   }
 }
+
+export async function getCardPriceHistory(cardId, variant, range) {
+  const supabase = await createClient()
+  const now = new Date()
+  const fromDate = new Date(now)
+
+  if (range === "week") fromDate.setDate(fromDate.getDate() - 7)
+  else if (range === "month") fromDate.setMonth(fromDate.getMonth() - 1)
+  else fromDate.setFullYear(fromDate.getFullYear() - 1)
+
+  const { data, error } = await supabase
+    .from("card_price_history")
+    .select("price, recorded_at")
+    .eq("card_id", cardId)
+    .eq("variant", variant)
+    .gte("recorded_at", fromDate.toISOString().slice(0, 10))
+    .order("recorded_at", { ascending: true })
+
+  if (error) {
+    console.error(error)
+    return []
+  }
+  return data || []
+}
