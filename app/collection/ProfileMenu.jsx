@@ -6,11 +6,14 @@ import { updateUsername, refreshCardsData, refreshSealedData, getSyncStatus } fr
 
 function formatSyncTime(iso) {
   if (!iso) return "Never"
-  const d = new Date(iso)
+  // Ensure the timestamp is treated as UTC even if the string lacks a timezone marker,
+  // then let the browser convert it to the user's local time correctly.
+  const hasTimezoneMarker = /Z|[+-]\d{2}:\d{2}$/.test(iso)
+  const d = new Date(hasTimezoneMarker ? iso : iso + "Z")
   const yyyy = d.getFullYear()
   const mm = String(d.getMonth() + 1).padStart(2, "0")
   const dd = String(d.getDate()).padStart(2, "0")
-  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })
   return `${yyyy}:${mm}:${dd} at ${time}`
 }
 
