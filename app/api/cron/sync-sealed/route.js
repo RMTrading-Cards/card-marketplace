@@ -106,8 +106,7 @@ export async function GET(request) {
 
   await supabase
     .from("sync_state")
-    .update({ last_set_index: index, last_run_at: new Date().toISOString() })
-    .eq("id", "sealed_sync_tcg")
+    .upsert({ id: "sealed_sync_tcg", last_set_index: index, last_run_at: new Date().toISOString() })
 
   return NextResponse.json({
     setsProcessed,

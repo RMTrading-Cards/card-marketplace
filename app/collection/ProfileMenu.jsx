@@ -19,6 +19,8 @@ export default function ProfileMenu({ email, username, isAdmin }) {
   const [editing, setEditing] = useState(false)
   const [refreshingCards, setRefreshingCards] = useState(false)
   const [refreshingSealed, setRefreshingSealed] = useState(false)
+  const [cardsProgress, setCardsProgress] = useState(0)
+  const [sealedProgress, setSealedProgress] = useState(0)
   const [refreshResult, setRefreshResult] = useState("")
   const [syncStatus, setSyncStatus] = useState(null)
   const router = useRouter()
@@ -43,34 +45,64 @@ export default function ProfileMenu({ email, username, isAdmin }) {
     router.refresh()
   }
 
-  async function handleRefreshCards() {
+  async function handleFullSyncCards() {
     setRefreshingCards(true)
-    setRefreshResult("")
+    setRefreshResult("Starting full cards sync...")
+    setCardsProgress(0)
+    let totalSynced = 0
+    let iterations = 0
+    const maxIterations = 40
+
     try {
-      const result = await refreshCardsData()
-      setRefreshResult(`Cards: synced ${result.cardsSynced ?? 0} (${result.nextIndex}/${result.totalSets} sets)`)
+      while (iterations < maxIterations) {
+        const result = await refreshCardsData()
+        iterations++
+        totalSynced += result.cardsSynced ?? 0
+        const totalSets = result.totalSets || 732
+        const pct = Math.round((result.nextIndex / totalSets) * 100)
+        setCardsProgress(pct)
+        setRefreshResult(`Synced ${totalSynced} cards so far — batch ${iterations}, position ${result.nextIndex}/${totalSets}`)
+
+        if (result.nextIndex === 0) break
+      }
+      setCardsProgress(100)
+      setRefreshResult(`Full cards sync complete — ${totalSynced} cards processed across ${iterations} batch(es). Reloading...`)
       const status = await getSyncStatus()
       setSyncStatus(status)
-      router.refresh()
+      setTimeout(() => window.location.reload(), 1500)
     } catch (err) {
       setRefreshResult(`Error: ${err.message}`)
-    } finally {
       setRefreshingCards(false)
     }
   }
 
-  async function handleRefreshSealed() {
+  async function handleFullSyncSealed() {
     setRefreshingSealed(true)
-    setRefreshResult("")
+    setRefreshResult("Starting full sealed sync...")
+    setSealedProgress(0)
+    let totalSynced = 0
+    let iterations = 0
+    const maxIterations = 40
+
     try {
-      const result = await refreshSealedData()
-      setRefreshResult(`Sealed: synced ${result.productsSynced ?? 0} (${result.nextIndex}/${result.totalSets} sets)`)
+      while (iterations < maxIterations) {
+        const result = await refreshSealedData()
+        iterations++
+        totalSynced += result.productsSynced ?? 0
+        const totalSets = result.totalSets || 732
+        const pct = Math.round((result.nextIndex / totalSets) * 100)
+        setSealedProgress(pct)
+        setRefreshResult(`Synced ${totalSynced} sealed products so far — batch ${iterations}, position ${result.nextIndex}/${totalSets}`)
+
+        if (result.nextIndex === 0) break
+      }
+      setSealedProgress(100)
+      setRefreshResult(`Full sealed sync complete — ${totalSynced} products processed across ${iterations} batch(es). Reloading...`)
       const status = await getSyncStatus()
       setSyncStatus(status)
-      router.refresh()
+      setTimeout(() => window.location.reload(), 1500)
     } catch (err) {
       setRefreshResult(`Error: ${err.message}`)
-    } finally {
       setRefreshingSealed(false)
     }
   }
@@ -104,7 +136,7 @@ export default function ProfileMenu({ email, username, isAdmin }) {
             border: "1px solid #2a2a2a",
             borderRadius: 8,
             padding: 16,
-            minWidth: 280,
+            minWidth: 300,
             zIndex: 20,
           }}
         >
@@ -169,11 +201,12 @@ export default function ProfileMenu({ email, username, isAdmin }) {
           {isAdmin && (
             <div style={{ marginBottom: 12, paddingTop: 12, borderTop: "1px solid #2a2a2a" }}>
               <div style={{ color: "#9ca3af", fontSize: 11, marginBottom: 8 }}>
-                Admin: force a data refresh (daily auto-sync still runs regardless)
+                Admin: run a full sync now (daily auto-sync still runs regardless)
               </div>
+
               <button
-                onClick={handleRefreshCards}
-                disabled={refreshingCards}
+                onClick={handleFullSyncCards}
+                disabled={refreshingCards || refreshingSealed}
                 style={{
                   width: "100%",
                   backgroundColor: "#16a34a",
@@ -184,15 +217,21 @@ export default function ProfileMenu({ email, username, isAdmin }) {
                   fontSize: 13,
                   border: "none",
                   cursor: refreshingCards ? "default" : "pointer",
-                  marginBottom: 8,
-                  opacity: refreshingCards ? 0.7 : 1,
+                  marginBottom: 6,
+                  opacity: refreshingCards || refreshingSealed ? 0.7 : 1,
                 }}
               >
-                {refreshingCards ? "Refreshing Cards..." : "Refresh Cards Data"}
+                {refreshingCards ? `Syncing Cards... ${cardsProgress}%` : "Full Sync: Cards"}
               </button>
+              {refreshingCards && (
+                <div style={{ backgroundColor: "#0d0d0d", borderRadius: 4, height: 6, marginBottom: 8, overflow: "hidden" }}>
+                  <div style={{ width: `${cardsProgress}%`, backgroundColor: "#16a34a", height: "100%", transition: "width 0.3s" }} />
+                </div>
+              )}
+
               <button
-                onClick={handleRefreshSealed}
-                disabled={refreshingSealed}
+                onClick={handleFullSyncSealed}
+                disabled={refreshingCards || refreshingSealed}
                 style={{
                   width: "100%",
                   backgroundColor: "#16a34a",
@@ -203,13 +242,20 @@ export default function ProfileMenu({ email, username, isAdmin }) {
                   fontSize: 13,
                   border: "none",
                   cursor: refreshingSealed ? "default" : "pointer",
-                  opacity: refreshingSealed ? 0.7 : 1,
+                  marginBottom: 6,
+                  opacity: refreshingCards || refreshingSealed ? 0.7 : 1,
                 }}
               >
-                {refreshingSealed ? "Refreshing Sealed..." : "Refresh Sealed Data"}
+                {refreshingSealed ? `Syncing Sealed... ${sealedProgress}%` : "Full Sync: Sealed"}
               </button>
+              {refreshingSealed && (
+                <div style={{ backgroundColor: "#0d0d0d", borderRadius: 4, height: 6, marginBottom: 8, overflow: "hidden" }}>
+                  <div style={{ width: `${sealedProgress}%`, backgroundColor: "#16a34a", height: "100%", transition: "width 0.3s" }} />
+                </div>
+              )}
+
               {refreshResult && (
-                <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 8, wordBreak: "break-word" }}>
+                <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 4, wordBreak: "break-word" }}>
                   {refreshResult}
                 </div>
               )}
