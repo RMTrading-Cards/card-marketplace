@@ -492,11 +492,11 @@ function MoveToMainButton({ id, itemType, mainCollectionId }) {
   )
 }
 
-function EbayLinkButton({ name, cardNumber }) {
+function EbayLinkButton({ name, cardNumber, condition, variant, isGraded, gradeValue }) {
   return React.createElement(
     "a",
     {
-      href: getEbaySoldLink(name, cardNumber),
+      href: getEbaySoldLink(name, cardNumber, { condition, variant, isGraded, gradeValue }),
       target: "_blank",
       rel: "noopener noreferrer",
       style: {
@@ -789,13 +789,20 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       )}
                       <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 4 }}>
                         <button
-                          onClick={() => setHistoryModal({ cardId: card?.id, variant: row.variant || "Standard", name: card?.name, cardNumber: card?.card_number })}
+                          onClick={() => setHistoryModal({ cardId: card?.id, variant: row.variant || "Standard", name: card?.name, cardNumber: card?.card_number, condition: row.condition, isGraded: card?.is_graded, gradeValue: card?.grade_value })}
                           className="rmt-tab"
                           style={{ marginTop: 4, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}
                         >
                           📈 More Data
                         </button>
-                        <EbayLinkButton name={card?.name} cardNumber={card?.card_number} />
+                        <EbayLinkButton
+                          name={card?.name}
+                          cardNumber={card?.card_number}
+                          condition={row.condition}
+                          variant={row.variant}
+                          isGraded={card?.is_graded}
+                          gradeValue={card?.grade_value}
+                        />
                       </div>
                     </div>
                     <div style={infoCol}>
@@ -1037,6 +1044,9 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
           variant={historyModal.variant}
           cardName={historyModal.name}
           cardNumber={historyModal.cardNumber}
+          condition={historyModal.condition}
+          isGraded={historyModal.isGraded}
+          gradeValue={historyModal.gradeValue}
           onClose={() => setHistoryModal(null)}
         />
       )}
