@@ -2,6 +2,7 @@
 import { useState, useTransition, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { searchCards, addCardToCollection } from "./actions"
+import EbaySoldButton from "./EbaySoldButton";
 
 function formatPrice(n) {
   return n == null ? "N/A" : `$${n.toFixed(2)}`
@@ -128,13 +129,45 @@ function CardResult({ card, variant, onAdded, collectionId }) {
           )}
           <span style={{ color: "#9ca3af", fontSize: 12 }}>· {variant.key}</span>
         </div>
-        <button
-          onClick={() => setShowHistory(true)}
-          className="rmt-tab"
-          style={{ marginBottom: 8, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}
-        >
-          📈 More Data
-        </button>
+        <div
+  style={{
+    display: "flex",
+    gap: 8,
+    marginBottom: 8,
+    flexWrap: "wrap",
+  }}
+>
+<div
+  style={{
+    display: "flex",
+    gap: 8,
+    marginBottom: 8,
+    flexWrap: "wrap",
+  }}
+>
+  <button
+    onClick={() => setShowHistory(true)}
+    className="rmt-tab"
+    style={{
+      backgroundColor: "#0d0d0d",
+      border: "1px solid #2a2a2a",
+      color: "#F2B705",
+      borderRadius: 6,
+      padding: "3px 8px",
+      fontSize: 11,
+      cursor: "pointer",
+    }}
+  >
+    📈 More Data
+  </button>
+
+  <EbaySoldButton
+     card={card}
+     variant={variant.key}
+     condition={condition}
+  />
+</div>
+</div>
         <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 8, display: "flex", justifyContent: "space-between", maxWidth: 220 }}>
           <span>Market: {formatPrice(market)}</span>
           {market != null && parsedPrice != null && (
@@ -231,11 +264,15 @@ function CardResult({ card, variant, onAdded, collectionId }) {
       </div>
       {showHistory && (
         <PriceHistoryModal
-          cardId={card.id}
-          variant={variant.key}
-          cardName={card.name}
-          onClose={() => setShowHistory(false)}
-        />
+  	   cardId={card.id}
+  	   variant={variant.key}
+  	   cardName={card.name}
+  	   cardNumber={card.card_number}
+  	   condition={condition}
+  	   isGraded={false}
+  	   gradeValue={null}
+  	   onClose={() => setShowHistory(false)}
+	/>
       )}
     </div>
   )

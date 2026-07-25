@@ -1,7 +1,7 @@
 ﻿"use client"
 import { useState, useEffect } from "react"
 import { getCardPriceHistory } from "./actions"
-import { getEbaySoldLink } from "@/lib/ebay"
+import EbaySoldButton from "./EbaySoldButton";
 
 export default function PriceHistoryModal({ cardId, variant, cardName, cardNumber, condition, isGraded, gradeValue, onClose }) {
   const [range, setRange] = useState("month")
@@ -55,14 +55,21 @@ export default function PriceHistoryModal({ cardId, variant, cardName, cardNumbe
           </button>
         </div>
 
-        <a
-          href={getEbaySoldLink(cardName, cardNumber, { condition, variant, isGraded, gradeValue })}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ display: "inline-block", marginBottom: 12, color: "#F2B705", fontSize: 13, textDecoration: "underline" }}
-        >
-          View sold listings on eBay
-        </a>
+	<EbaySoldButton
+  	   card={{
+    	      name: cardName,
+    	      card_number: cardNumber,
+  	   }}
+  	   variant={variant}
+  	   condition={condition}
+  	   isGraded={isGraded}
+  	   gradeValue={gradeValue}
+  	   style={{
+    	      marginBottom: 12,
+    	      fontSize: 13,
+    	      padding: "6px 12px",
+  	   }}
+	/>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {["week", "month", "year"].map((r) => (

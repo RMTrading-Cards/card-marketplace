@@ -8,6 +8,8 @@ import ManualAddCard from "./ManualAddCard"
 import CollectionSelector from "./CollectionSelector"
 import PriceHistoryModal from "./PriceHistoryModal"
 import { getEbaySoldLink } from "@/lib/ebay"
+import EbaySoldButton from "./EbaySoldButton";
+
 import {
   removeCardFromCollection,
   removeSealedFromCollection,
