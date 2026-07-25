@@ -1,109 +1,118 @@
 "use server"
 import { createClient } from "@/lib/supabase/server"
-import { revalidatePath } from "next/cache"
+import { createPublicClient } from "@/lib/supabase/public"
+import { revalidatePath, unstable_cache } from "next/cache"
 
 function buildNamePattern(token) {
-  // Replace apostrophe-like characters (straight ' or curly ') with SQL '_' wildcard
-  // so a search for "steven's" matches names using either style of apostrophe.
   return token.replace(/[\u2019\u2018']/g, "_")
 }
 
+const cachedSearchCards = unstable_cache(
+  async (query, sortBy, page, pageSize, regionFilter) => {
+    const supabase = createPublicClient()
+    const rawTokens = query.trim().split(/\s+/).filter(Boolean)
+    const selectCols =
+      "id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region"
+
+    const numberTokens = []
+    const nameTokens = []
+
+    for (const token of rawTokens) {
+      if (token.includes("/")) {
+        numberTokens.push(token.split("/")[0])
+      } else if (/^\d+$/.test(token)) {
+        numberTokens.push(token)
+      } else {
+        nameTokens.push(token)
+      }
+    }
+
+    let q = supabase.from("cards").select(selectCols, { count: "exact" })
+    for (const token of nameTokens) {
+      q = q.ilike("name", `%${buildNamePattern(token)}%`)
+    }
+    for (const num of numberTokens) {
+      q = q.ilike("card_number", `%${num}%`)
+    }
+    if (regionFilter) {
+      q = q.eq("region", regionFilter)
+    }
+    if (sortBy === "price_desc") {
+      q = q.order("tcgplayer_market_price", { ascending: false, nullsFirst: false })
+    } else if (sortBy === "price_asc") {
+      q = q.order("tcgplayer_market_price", { ascending: true, nullsFirst: false })
+    } else {
+      q = q.order("name")
+    }
+
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+    q = q.range(from, to)
+
+    const { data, error, count } = await q
+    if (error) {
+      console.error(error)
+      return { results: [], totalCount: 0 }
+    }
+    return { results: data || [], totalCount: count || 0 }
+  },
+  ["search-cards"],
+  { revalidate: 60 }
+)
+
 export async function searchCards(query, sortBy = "name", page = 1, pageSize = 20, regionFilter = null) {
   if (!query || query.trim().length < 2) return { results: [], totalCount: 0 }
-
-  const supabase = await createClient()
-  const rawTokens = query.trim().split(/\s+/).filter(Boolean)
-  const selectCols =
-    "id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region"
-
-  const numberTokens = []
-  const nameTokens = []
-
-  for (const token of rawTokens) {
-    if (token.includes("/")) {
-      numberTokens.push(token.split("/")[0])
-    } else if (/^\d+$/.test(token)) {
-      numberTokens.push(token)
-    } else {
-      nameTokens.push(token)
-    }
-  }
-
-  let q = supabase.from("cards").select(selectCols, { count: "exact" })
-  for (const token of nameTokens) {
-    q = q.ilike("name", `%${buildNamePattern(token)}%`)
-  }
-  for (const num of numberTokens) {
-    q = q.ilike("card_number", `%${num}%`)
-  }
-
-  if (regionFilter) {
-    q = q.eq("region", regionFilter)
-  }
-
-  if (sortBy === "price_desc") {
-    q = q.order("tcgplayer_market_price", { ascending: false, nullsFirst: false })
-  } else if (sortBy === "price_asc") {
-    q = q.order("tcgplayer_market_price", { ascending: true, nullsFirst: false })
-  } else {
-    q = q.order("name")
-  }
-
-  const from = (page - 1) * pageSize
-  const to = from + pageSize - 1
-  q = q.range(from, to)
-
-  const { data, error, count } = await q
-  if (error) {
-    console.error(error)
-    return { results: [], totalCount: 0 }
-  }
-
-  return { results: data || [], totalCount: count || 0 }
+  return cachedSearchCards(query.trim().toLowerCase(), sortBy, page, pageSize, regionFilter)
 }
+
+const cachedSearchSealedProducts = unstable_cache(
+  async (query, sortBy, page, pageSize, regionFilter) => {
+    const supabase = createPublicClient()
+    const tokens = query.trim().split(/\s+/).filter(Boolean)
+
+    let q = supabase.from("sealed_products").select("*", { count: "exact" })
+    for (const token of tokens) {
+      q = q.or(`name.ilike.%${token}%,set_name.ilike.%${token}%`)
+    }
+    if (regionFilter) {
+      q = q.eq("region", regionFilter)
+    }
+    if (sortBy === "price_desc") {
+      q = q.order("market_price", { ascending: false, nullsFirst: false })
+    } else if (sortBy === "price_asc") {
+      q = q.order("market_price", { ascending: true, nullsFirst: false })
+    } else {
+      q = q.order("name")
+    }
+
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+    q = q.range(from, to)
+
+    const { data, error, count } = await q
+    if (error) {
+      console.error(error)
+      return { results: [], totalCount: 0 }
+    }
+
+    const results = (data || []).map((p) => ({
+      id: p.id,
+      tcgPlayerId: p.tcgplayer_id,
+      name: p.name,
+      setName: p.set_name,
+      imageUrl: p.image_url,
+      unopenedPrice: p.market_price,
+    }))
+
+    return { results, totalCount: count || 0 }
+  },
+  ["search-sealed"],
+  { revalidate: 60 }
+)
 
 export async function searchSealedProducts(query, sortBy = "name", page = 1, pageSize = 20, regionFilter = null) {
   if (!query || query.trim().length < 2) return { results: [], totalCount: 0 }
-
-  const supabase = await createClient()
-
-  let q = supabase
-    .from("sealed_products")
-    .select("*", { count: "exact" })
-    .or(`name.ilike.%${query}%,set_name.ilike.%${query}%`)
-
-  if (regionFilter) {
-    q = q.eq("region", regionFilter)
-  }
-
-  if (sortBy === "price_desc") {
-    q = q.order("market_price", { ascending: false, nullsFirst: false })
-  } else if (sortBy === "price_asc") {
-    q = q.order("market_price", { ascending: true, nullsFirst: false })
-  } else {
-    q = q.order("name")
-  }
-
-  const from = (page - 1) * pageSize
-  const to = from + pageSize - 1
-  q = q.range(from, to)
-
-  const { data, error, count } = await q
-  if (error) {
-    console.error(error)
-    return { results: [], totalCount: 0 }
-  }
-
-  const results = (data || []).map((p) => ({
-    id: p.id,
-    tcgPlayerId: p.tcgplayer_id,
-    name: p.name,
-    setName: p.set_name,
-    imageUrl: p.image_url,
-    unopenedPrice: p.market_price,
-  }))
-
-  return { results, totalCount: count || 0 }
+  return cachedSearchSealedProducts(query.trim().toLowerCase(), sortBy, page, pageSize, regionFilter)
 }
 
 export async function addCardToCollection(formData) {
@@ -772,17 +781,19 @@ export async function addManualCard(formData) {
   revalidatePath("/collection")
 }
 
-export async function getManualAddOptions() {
-  const supabase = await createClient()
-
-  const { data: setRows } = await supabase.from("distinct_set_names").select("set_name")
-  const { data: rarityRows } = await supabase.from("distinct_rarities").select("rarity")
-
-  return {
-    setNames: (setRows || []).map((r) => r.set_name),
-    rarities: (rarityRows || []).map((r) => r.rarity),
-  }
-}
+export const getManualAddOptions = unstable_cache(
+  async () => {
+    const supabase = createPublicClient()
+    const { data: setRows } = await supabase.from("distinct_set_names").select("set_name")
+    const { data: rarityRows } = await supabase.from("distinct_rarities").select("rarity")
+    return {
+      setNames: (setRows || []).map((r) => r.set_name),
+      rarities: (rarityRows || []).map((r) => r.rarity),
+    }
+  },
+  ["manual-add-options"],
+  { revalidate: 3600 }
+)
 
 export async function getCardConditionPrice(cardId, variant, condition) {
   const supabase = await createClient()
@@ -811,36 +822,6 @@ export async function getCardConditionPrice(cardId, variant, condition) {
   const matches = rows.filter((r) => r.var === variant && r.cnd === condition)
   const best = matches.find((r) => r.lng === wantLang) || matches[0]
   return best?.mkt ?? getVariantPrice()
-}
-
-export async function refreshCardsData() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user || user.id !== process.env.ADMIN_USER_ID) {
-    throw new Error("Not authorized")
-  }
-
-  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-cards", {
-    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-  })
-  const json = await res.json()
-  revalidatePath("/collection")
-  return json
-}
-
-export async function refreshSealedData() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user || user.id !== process.env.ADMIN_USER_ID) {
-    throw new Error("Not authorized")
-  }
-
-  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-sealed", {
-    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-  })
-  const json = await res.json()
-  revalidatePath("/collection")
-  return json
 }
 
 export async function moveItemToCollection(formData) {
@@ -893,4 +874,34 @@ export async function getCardPriceHistory(cardId, variant, range) {
     return []
   }
   return data || []
+}
+
+export async function refreshCardsData() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.id !== process.env.ADMIN_USER_ID) {
+    throw new Error("Not authorized")
+  }
+
+  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-cards", {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  })
+  const json = await res.json()
+  revalidatePath("/collection")
+  return json
+}
+
+export async function refreshSealedData() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.id !== process.env.ADMIN_USER_ID) {
+    throw new Error("Not authorized")
+  }
+
+  const res = await fetch("https://www.rmtradingcards.com/api/cron/sync-sealed", {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  })
+  const json = await res.json()
+  revalidatePath("/collection")
+  return json
 }

@@ -6,6 +6,7 @@ import AddSealedSearch from "./AddSealedSearch"
 import ManualAddCard from "./ManualAddCard"
 import CollectionSelector from "./CollectionSelector"
 import PriceHistoryModal from "./PriceHistoryModal"
+import { getEbaySoldLink } from "@/lib/ebay"
 import {
   removeCardFromCollection,
   removeSealedFromCollection,

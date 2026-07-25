@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { updateUsername, refreshCardsData, refreshSealedData, getSyncStatus } from "./actions"
@@ -26,7 +26,20 @@ export default function ProfileMenu({ email, username, isAdmin }) {
   const [sealedProgress, setSealedProgress] = useState(0)
   const [refreshResult, setRefreshResult] = useState("")
   const [syncStatus, setSyncStatus] = useState(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
+  const buttonRef = useRef(null)
   const router = useRouter()
+
+  function handleToggle() {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setMenuPos({
+        top: rect.bottom + 8,
+        right: Math.max(8, window.innerWidth - rect.right),
+      })
+    }
+    setOpen(!open)
+  }
 
   useEffect(() => {
     if (open && !syncStatus) {
@@ -113,7 +126,8 @@ export default function ProfileMenu({ email, username, isAdmin }) {
   return (
     <div style={{ position: "relative" }}>
       <button
-        onClick={() => setOpen(!open)}
+        ref={buttonRef}
+        onClick={handleToggle}
         className="rmt-btn"
         style={{
           backgroundColor: "#141414",
@@ -132,15 +146,19 @@ export default function ProfileMenu({ email, username, isAdmin }) {
       {open && (
         <div
           style={{
-            position: "absolute",
-            right: 0,
-            top: "calc(100% + 8px)",
+            position: "fixed",
+            top: menuPos.top,
+            right: menuPos.right,
             backgroundColor: "#141414",
             border: "1px solid #2a2a2a",
             borderRadius: 8,
             padding: 16,
-            minWidth: 300,
-            zIndex: 20,
+            width: "min(300px, calc(100vw - 16px))",
+            maxWidth: "calc(100vw - 16px)",
+            maxHeight: "calc(100vh - 100px)",
+            overflowY: "auto",
+            boxSizing: "border-box",
+            zIndex: 50,
           }}
         >
           <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>Signed in as</div>
