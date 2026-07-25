@@ -1,5 +1,6 @@
-"use client"
+﻿"use client"
 import { useState, useMemo, useEffect } from "react"
+import React from "react"
 import { useRouter } from "next/navigation"
 import AddCardsSearch from "./AddCardsSearch"
 import AddSealedSearch from "./AddSealedSearch"
@@ -25,6 +26,7 @@ import {
 const EBAY_FVF_RATE = 0.1325
 const EBAY_PER_ORDER_FEE = 0.40
 const CONDITIONS = ["NM", "LP", "MP", "HP", "DMG"]
+const PAGE_INCREMENT = 30
 
 function ebayPayout(value) {
   if (value == null) return null
@@ -32,7 +34,7 @@ function ebayPayout(value) {
 }
 
 function formatPrice(n) {
-  return n == null ? "—" : `$${n.toFixed(2)}`
+  return n == null ? "--" : "$" + n.toFixed(2)
 }
 
 function marginPercent(value, paid) {
@@ -201,7 +203,7 @@ function AskPriceInput({ id, itemType, currentValue }) {
     <div
       onClick={() => setEditing(true)}
       style={{ fontSize: 12, color: "#F2B705", marginTop: 6, cursor: "pointer", textDecoration: "underline dotted" }}
-      title="Click to set your asking price (shown on your public share link instead of market price)"
+      title="Click to set your asking price"
     >
       Ask Price: {currentValue != null ? formatPrice(currentValue) : "Not set (click to set)"}
     </div>
@@ -490,6 +492,28 @@ function MoveToMainButton({ id, itemType, mainCollectionId }) {
   )
 }
 
+function EbayLinkButton({ name, cardNumber }) {
+  return React.createElement(
+    "a",
+    {
+      href: getEbaySoldLink(name, cardNumber),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: {
+        backgroundColor: "#0d0d0d",
+        border: "1px solid #2a2a2a",
+        color: "#9ca3af",
+        borderRadius: 6,
+        padding: "3px 8px",
+        fontSize: 11,
+        textDecoration: "none",
+        display: "inline-block",
+      },
+    },
+    "🔗 Sold on eBay"
+  )
+}
+
 const cardBox = { backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12, display: "flex", gap: 12, flexWrap: "wrap" }
 const imageCol = { flex: "1 1 40%", maxWidth: 200, minWidth: 110 }
 const infoCol = { flex: "1 1 50%", minWidth: 150, color: "#ffffff" }
@@ -502,22 +526,32 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
   const [tab, setTab] = useState("collection")
   const [priceOverrides, setPriceOverrides] = useState({})
-  const [historyModal, setHistoryModal] = useState(null)
   const [sellingMode, setSellingMode] = useState(false)
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [sortBy, setSortBy] = useState("date_desc")
+  const [visibleCount, setVisibleCount] = useState(PAGE_INCREMENT)
+  const [historyModal, setHistoryModal] = useState(null)
 
   const [selectedCollectionIds, setSelectedCollectionIds] = useState([mainCollectionId].filter(Boolean))
   const [soldQuery, setSoldQuery] = useState("")
   const [soldTypeFilter, setSoldTypeFilter] = useState("all")
   const [soldSortBy, setSoldSortBy] = useState("date_desc")
+  const [soldVisibleCount, setSoldVisibleCount] = useState(PAGE_INCREMENT)
 
   const selectedNames = collections.filter((c) => selectedCollectionIds.includes(c.id)).map((c) => c.name).join(", ")
 
   function toggleSellingMode() {
     setSellingMode((prev) => !prev)
   }
+
+  useEffect(() => {
+    setVisibleCount(PAGE_INCREMENT)
+  }, [query, typeFilter, sortBy, selectedCollectionIds])
+
+  useEffect(() => {
+    setSoldVisibleCount(PAGE_INCREMENT)
+  }, [soldQuery, soldTypeFilter, soldSortBy, selectedCollectionIds])
 
   const combined = useMemo(() => {
     const cardRows = (myCards || []).map((item) => ({
@@ -563,7 +597,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
     const groups = {}
     for (const row of soldInCollection) {
       if (row.soldPrice == null) continue
-      const key = row.kind === "card" ? `card-${row.cardMeta?.id}-${row.variant || "Standard"}` : `sealed-${row.name}`
+      const key = row.kind === "card" ? "card-" + row.cardMeta?.id + "-" + (row.variant || "Standard") : "sealed-" + row.name
       if (!groups[key]) groups[key] = { totalRevenue: 0, totalQty: 0, count: 0 }
       groups[key].totalRevenue += row.soldPrice * row.quantity
       groups[key].totalQty += row.quantity
@@ -634,6 +668,9 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
     return list
   }, [activeInCollection, query, typeFilter, sortBy])
 
+  const visibleFiltered = filtered.slice(0, visibleCount)
+  const visibleFilteredSold = filteredSold.slice(0, soldVisibleCount)
+
   async function handleClearSold() {
     if (!confirm("Clear sold history and reset actual profit for the selected collection(s)? This can't be undone.")) return
     for (const id of selectedCollectionIds) {
@@ -662,11 +699,11 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       `}</style>
 
       <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
-        <button className={`rmt-tab${tab === "collection" ? " rmt-tab-active" : ""}`} onClick={() => setTab("collection")} style={tabButtonBase}>Collection</button>
-        <button className={`rmt-tab${tab === "sold" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sold")} style={tabButtonBase}>Sold History</button>
-        <button className={`rmt-tab${tab === "cards" ? " rmt-tab-active" : ""}`} onClick={() => setTab("cards")} style={tabButtonBase}>Add Cards</button>
-        <button className={`rmt-tab${tab === "sealed" ? " rmt-tab-active" : ""}`} onClick={() => setTab("sealed")} style={tabButtonBase}>Add Sealed</button>
-        <button className={`rmt-tab${tab === "manual" ? " rmt-tab-active" : ""}`} onClick={() => setTab("manual")} style={tabButtonBase}>Manual Add Card</button>
+        <button className={"rmt-tab" + (tab === "collection" ? " rmt-tab-active" : "")} onClick={() => setTab("collection")} style={tabButtonBase}>Collection</button>
+        <button className={"rmt-tab" + (tab === "sold" ? " rmt-tab-active" : "")} onClick={() => setTab("sold")} style={tabButtonBase}>Sold History</button>
+        <button className={"rmt-tab" + (tab === "cards" ? " rmt-tab-active" : "")} onClick={() => setTab("cards")} style={tabButtonBase}>Add Cards</button>
+        <button className={"rmt-tab" + (tab === "sealed" ? " rmt-tab-active" : "")} onClick={() => setTab("sealed")} style={tabButtonBase}>Add Sealed</button>
+        <button className={"rmt-tab" + (tab === "manual" ? " rmt-tab-active" : "")} onClick={() => setTab("manual")} style={tabButtonBase}>Manual Add Card</button>
       </div>
 
       {tab === "collection" && (
@@ -712,23 +749,23 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={controlStyle}>
               <option value="date_desc">Newest Added</option>
               <option value="date_asc">Oldest Added</option>
-              <option value="name">Name A → Z</option>
-              <option value="price_desc">Price High → Low</option>
-              <option value="price_asc">Price Low → High</option>
-              <option value="margin_desc">Margin % High → Low</option>
-              <option value="margin_asc">Margin % Low → High</option>
+              <option value="name">Name A to Z</option>
+              <option value="price_desc">Price High to Low</option>
+              <option value="price_asc">Price Low to High</option>
+              <option value="margin_desc">Margin % High to Low</option>
+              <option value="margin_asc">Margin % Low to High</option>
             </select>
           </div>
 
           <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
             {selectedNames || "Collection"} ({filtered.length})
-            {sellingMode && <span style={{ color: "#F2B705", fontSize: 14, marginLeft: 8 }}>· Selling Mode</span>}
+            {sellingMode && <span style={{ color: "#F2B705", fontSize: 14, marginLeft: 8 }}>- Selling Mode</span>}
           </h2>
 
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
-            {filtered.length === 0 && <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No items found.</p>}
+            {visibleFiltered.length === 0 && <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No items found.</p>}
 
-            {filtered.map((row) => {
+            {visibleFiltered.map((row) => {
               const held = daysBetween(row.createdAt, null)
 
               if (row.kind === "card") {
@@ -739,7 +776,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                 const payout = ebayPayout(effectivePrice)
 
                 return (
-                  <div key={`card-${row.id}`} style={cardBox}>
+                  <div key={"card-" + row.id} style={cardBox}>
                     <div style={imageCol}>
                       {row.image && <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />}
                       {held != null && (
@@ -750,14 +787,15 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           <MoveToMainButton id={row.id} itemType="card" mainCollectionId={mainCollectionId} />
                         </div>
                       )}
-                      <div style={{ textAlign: "center" }}>
+                      <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 4 }}>
                         <button
-                          onClick={() => setHistoryModal({ cardId: card?.id, variant: row.variant || "Standard", name: card?.name })}
+                          onClick={() => setHistoryModal({ cardId: card?.id, variant: row.variant || "Standard", name: card?.name, cardNumber: card?.card_number })}
                           className="rmt-tab"
                           style={{ marginTop: 4, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}
                         >
                           📈 More Data
                         </button>
+                        <EbayLinkButton name={card?.name} cardNumber={card?.card_number} />
                       </div>
                     </div>
                     <div style={infoCol}>
@@ -768,16 +806,16 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                         )}
                       </strong>{" "}
                       <span style={{ color: "#9ca3af" }}>
-                        ({card?.set_name}{card?.release_year && ` · ${card.release_year}`})
+                        ({card?.set_name}{card?.release_year && " - " + card.release_year})
                       </span>
                       {card?.rarity && (
                         <div style={{ color: "#F2B705", fontSize: 12, marginTop: 2 }}>
-                          {card.rarity} · {row.variant || "Standard"}
+                          {card.rarity} - {row.variant || "Standard"}
                         </div>
                       )}
                       <div style={{ fontSize: 13, marginTop: 6, marginBottom: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <QuantityEditor id={row.id} itemType="card" quantity={row.quantity} />
-                        <span>· Condition:</span>
+                        <span>Condition:</span>
                         <ConditionEditor
                           id={row.id}
                           condition={row.condition}
@@ -785,7 +823,6 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           variant={row.variant}
                           onPriceUpdate={(rowId, price) => setPriceOverrides((prev) => ({ ...prev, [rowId]: price }))}
                         />
-                        <span>·</span>
                         <EditablePaid id={row.id} itemType="card" purchasePrice={purchasePrice} />
                       </div>
 
@@ -797,7 +834,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           <ThresholdRow label="90%" value={market * 0.9} purchasePrice={purchasePrice} />
                           <ThresholdRow label="95%" value={market * 0.95} purchasePrice={purchasePrice} />
                           <ThresholdRow label="eBay Payout (~87%)" value={payout} purchasePrice={purchasePrice} />
-                          <ThresholdRow label={`Market (${row.condition})`} value={market} purchasePrice={purchasePrice} big />
+                          <ThresholdRow label={"Market (" + row.condition + ")"} value={market} purchasePrice={purchasePrice} big />
                         </div>
                       ) : (
                         <div>
@@ -828,7 +865,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               const payout = ebayPayout(effectiveMarket)
 
               return (
-                <div key={`sealed-${row.id}`} style={cardBox}>
+                <div key={"sealed-" + row.id} style={cardBox}>
                   <div style={imageCol}>
                     {row.image && <img src={row.image} alt={row.name} style={{ width: "100%", borderRadius: 6 }} />}
                     {held != null && (
@@ -839,15 +876,17 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                         <MoveToMainButton id={row.id} itemType="sealed" mainCollectionId={mainCollectionId} />
                       </div>
                     )}
+                    <div style={{ textAlign: "center" }}>
+                      <EbayLinkButton name={row.name} cardNumber={null} />
+                    </div>
                   </div>
                   <div style={infoCol}>
                     <strong>{row.name}</strong>{" "}
                     <span style={{ color: "#9ca3af" }}>({row.subLabel})</span>
                     <div style={{ fontSize: 13, marginTop: 6, marginBottom: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <QuantityEditor id={row.id} itemType="sealed" quantity={row.quantity} />
-                      <span>·</span>
                       <EditablePaid id={row.id} itemType="sealed" purchasePrice={row.purchasePrice} />
-                      <span>· Market: {formatPrice(row.market)}</span>
+                      <span>Market: {formatPrice(row.market)}</span>
                     </div>
                     <MarginLine value={effectiveMarket} purchasePrice={row.purchasePrice} />
                     {payout != null && (
@@ -870,6 +909,18 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               )
             })}
           </div>
+
+          {filtered.length > visibleCount && (
+            <div style={{ textAlign: "center", marginTop: 20 }}>
+              <button
+                onClick={() => setVisibleCount((c) => c + PAGE_INCREMENT)}
+                className="rmt-tab"
+                style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+              >
+                Load {Math.min(PAGE_INCREMENT, filtered.length - visibleCount)} More ({visibleCount} of {filtered.length} shown)
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -899,30 +950,30 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
             <select value={soldSortBy} onChange={(e) => setSoldSortBy(e.target.value)} style={controlStyle}>
               <option value="date_desc">Newest Sold</option>
               <option value="date_asc">Oldest Sold</option>
-              <option value="name">Name A → Z</option>
-              <option value="price_desc">Sold Price High → Low</option>
-              <option value="price_asc">Sold Price Low → High</option>
-              <option value="margin_desc">Margin % High → Low</option>
-              <option value="margin_asc">Margin % Low → High</option>
+              <option value="name">Name A to Z</option>
+              <option value="price_desc">Sold Price High to Low</option>
+              <option value="price_asc">Sold Price Low to High</option>
+              <option value="margin_desc">Margin % High to Low</option>
+              <option value="margin_asc">Margin % Low to High</option>
             </select>
           </div>
 
           <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-            Sold History — {selectedNames || "Collection"} ({filteredSold.length})
+            Sold History - {selectedNames || "Collection"} ({filteredSold.length})
           </h2>
 
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
-            {filteredSold.length === 0 && <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No sold items found.</p>}
+            {visibleFilteredSold.length === 0 && <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No sold items found.</p>}
 
-            {filteredSold.map((row) => {
+            {visibleFilteredSold.map((row) => {
               const held = daysBetween(row.createdAt, row.soldAt)
               const profit = row.soldPrice != null && row.purchasePrice != null ? (row.soldPrice - row.purchasePrice) * row.quantity : null
               const name = row.kind === "card" ? row.cardMeta?.name : row.name
-              const avgKey = row.kind === "card" ? `card-${row.cardMeta?.id}-${row.variant || "Standard"}` : `sealed-${row.name}`
+              const avgKey = row.kind === "card" ? "card-" + row.cardMeta?.id + "-" + (row.variant || "Standard") : "sealed-" + row.name
               const avgInfo = soldAverages[avgKey]
 
               return (
-                <div key={`sold-${row.kind}-${row.id}`} style={cardBox}>
+                <div key={"sold-" + row.kind + "-" + row.id} style={cardBox}>
                   <div style={imageCol}>
                     {row.image && <img src={row.image} alt={name} style={{ width: "100%", borderRadius: 6 }} />}
                     {held != null && (
@@ -933,7 +984,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                     <strong>{row.kind === "card" && row.cardMeta?.region === "JP" ? "JP " : ""}{name}</strong>{" "}
                     <span style={{ color: "#9ca3af" }}>({row.subLabel})</span>
                     <div style={{ fontSize: 13, marginTop: 6 }}>
-                      Qty: {row.quantity} · Paid: {formatPrice(row.purchasePrice)} · Sold: {formatPrice(row.soldPrice)}
+                      Qty: {row.quantity} - Paid: {formatPrice(row.purchasePrice)} - Sold: {formatPrice(row.soldPrice)}
                     </div>
                     <MarginLine value={row.soldPrice} purchasePrice={row.purchasePrice} />
                     {profit != null && (
@@ -942,7 +993,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       </div>
                     )}
                     <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
-                      Sold on {row.soldAt ? new Date(row.soldAt).toLocaleDateString() : "—"}
+                      Sold on {row.soldAt ? new Date(row.soldAt).toLocaleDateString() : "--"}
                     </div>
                     {avgInfo && avgInfo.count > 1 && (
                       <div style={{ color: "#F2B705", fontSize: 12, marginTop: 4, fontWeight: 600 }}>
@@ -961,6 +1012,18 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
               )
             })}
           </div>
+
+          {filteredSold.length > soldVisibleCount && (
+            <div style={{ textAlign: "center", marginTop: 20 }}>
+              <button
+                onClick={() => setSoldVisibleCount((c) => c + PAGE_INCREMENT)}
+                className="rmt-tab"
+                style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+              >
+                Load {Math.min(PAGE_INCREMENT, filteredSold.length - soldVisibleCount)} More ({soldVisibleCount} of {filteredSold.length} shown)
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -973,6 +1036,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
           cardId={historyModal.cardId}
           variant={historyModal.variant}
           cardName={historyModal.name}
+          cardNumber={historyModal.cardNumber}
           onClose={() => setHistoryModal(null)}
         />
       )}
