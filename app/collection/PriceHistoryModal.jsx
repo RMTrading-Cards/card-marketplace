@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { getCardPriceHistory } from "./action"
+import { getCardPriceHistory } from "./actions"
 import EbaySoldButton from "./EbaySoldButton"
 
 const RANGES = ["week", "month", "year"]
