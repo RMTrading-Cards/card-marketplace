@@ -852,28 +852,63 @@ export async function getSyncStatus() {
   }
 }
 
+const HISTORY_VARIANT_ORDER = [
+  "Holofoil",
+  "Normal",
+  "Reverse Holofoil",
+  "1st Edition Holofoil",
+  "Standard",
+]
+
 export async function getCardPriceHistory(cardId, variant, range) {
   const supabase = await createClient()
-  const now = new Date()
-  const fromDate = new Date(now)
+  if (!cardId) return []
 
+  const fromDate = new Date()
   if (range === "week") fromDate.setDate(fromDate.getDate() - 7)
   else if (range === "month") fromDate.setMonth(fromDate.getMonth() - 1)
   else fromDate.setFullYear(fromDate.getFullYear() - 1)
+  const cutoff = fromDate.toISOString().slice(0, 10)
 
-  const { data, error } = await supabase
-    .from("card_price_history")
-    .select("price, recorded_at")
-    .eq("card_id", cardId)
-    .eq("variant", variant)
-    .gte("recorded_at", fromDate.toISOString().slice(0, 10))
-    .order("recorded_at", { ascending: true })
-
-  if (error) {
-    console.error(error)
-    return []
+  async function rowsFor(v) {
+    const { data, error } = await supabase
+      .from("card_price_history")
+      .select("price, recorded_at")
+      .eq("card_id", cardId)
+      .eq("variant", v)
+      .gte("recorded_at", cutoff)
+      .order("recorded_at", { ascending: true })
+    if (error) {
+      console.error("[getCardPriceHistory]", v, error.message)
+      return null
+    }
+    return data || []
   }
-  return data || []
+
+  let rows = variant ? await rowsFor(variant) : []
+
+  if (!rows || rows.length === 0) {
+    const { data: avail } = await supabase
+      .from("card_price_history")
+      .select("variant")
+      .eq("card_id", cardId)
+      .gte("recorded_at", cutoff)
+
+    const present = new Set((avail || []).map((r) => r.variant))
+    const pick =
+      HISTORY_VARIANT_ORDER.find((v) => present.has(v)) || Array.from(present)[0]
+
+    console.log("[getCardPriceHistory] fallback", {
+      cardId,
+      requested: variant,
+      available: Array.from(present),
+      picked: pick,
+    })
+
+    if (pick) rows = await rowsFor(pick)
+  }
+
+  return rows || []
 }
 
 export async function refreshCardsData() {

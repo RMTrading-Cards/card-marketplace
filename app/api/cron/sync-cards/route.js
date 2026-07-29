@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 
 export const maxDuration = 55
 
-const DAILY_TIME_BUDGET_MS = 50000
+const TIME_BUDGET_MS = 40000
 const BASE = "https://openapi.tcgtracking.com/v1"
 const CATEGORIES = [
   { id: 3, region: "US" },
@@ -35,6 +35,21 @@ function pickPrice(tcg, preferredKeys) {
   return null
 }
 
+function easternDateString() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date())
+}
+
+function chunk(arr, size) {
+  const out = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
 export async function GET(request) {
   const authHeader = request.headers.get("authorization")
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -53,7 +68,10 @@ export async function GET(request) {
       }).format(new Date())
     )
     if (easternHour !== 9) {
-      return NextResponse.json({ skipped: true, reason: `Not 9am Eastern yet (currently ${easternHour}:00 ET)` })
+      return NextResponse.json({
+        skipped: true,
+        reason: "Not 9am Eastern (currently " + easternHour + ":00 ET)",
+      })
     }
   }
 
@@ -89,17 +107,35 @@ export async function GET(request) {
     .single()
 
   let index = state?.last_set_index ?? 0
-  const startTime = Date.now()
-  const setsProcessed = []
-  let totalSynced = 0
-  const today = new Date().toISOString().slice(0, 10)
+  if (index >= allSets.length) index = 0
 
-  while (Date.now() - startTime < DAILY_TIME_BUDGET_MS) {
+  const startTime = Date.now()
+  const today = easternDateString()
+
+  const setsProcessed = []
+  const setsSkipped = []
+  const errors = []
+  let cardsSynced = 0
+  let historyRowsWritten = 0
+  let passesCompleted = 0
+
+  async function saveCursor(i) {
+    const { error } = await supabase.from("sync_state").upsert({
+      id: "cards_sync_tcg",
+      last_set_index: i,
+      last_run_at: new Date().toISOString(),
+    })
+    if (error) errors.push("sync_state upsert: " + error.message)
+  }
+
+  while (Date.now() - startTime < TIME_BUDGET_MS) {
     if (index >= allSets.length) {
       index = 0
-      break
+      passesCompleted++
     }
+
     const set = allSets[index]
+    const label = set.region + ":" + set.setName
 
     const [cardsJson, pricingJson, skusJson] = await Promise.all([
       fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/cards`),
@@ -108,8 +144,13 @@ export async function GET(request) {
     ])
 
     const products = cardsJson?.products || []
-    if (products.length > 0) {
-      const prices = pricingJson?.prices || {}
+
+    if (products.length === 0) {
+      setsSkipped.push(label + " (no products returned)")
+    } else if (!pricingJson?.prices) {
+      setsSkipped.push(label + " (pricing fetch failed - retries next pass)")
+    } else {
+      const prices = pricingJson.prices
       const skuProducts = skusJson?.products || {}
 
       const rows = []
@@ -117,12 +158,13 @@ export async function GET(request) {
 
       for (const p of products) {
         const tcg = prices[String(p.id)]?.tcg || {}
-        const cardId = `tcg${set.category}-${p.id}`
+        const cardId = "tcg" + set.category + "-" + p.id
 
         const priceNormal = tcg["Normal"]?.market ?? null
         const priceHolofoil = tcg["Holofoil"]?.market ?? null
         const priceReverseHolofoil = tcg["Reverse Holofoil"]?.market ?? null
-        const price1stEdHolofoil = tcg["1st Edition Holofoil"]?.market ?? tcg["1st Edition"]?.market ?? null
+        const price1stEdHolofoil =
+          tcg["1st Edition Holofoil"]?.market ?? tcg["1st Edition"]?.market ?? null
         const marketPrice = pickPrice(tcg, ["Holofoil", "Normal", "Reverse Holofoil"])
 
         rows.push({
@@ -153,40 +195,70 @@ export async function GET(request) {
           ["Reverse Holofoil", priceReverseHolofoil],
           ["1st Edition Holofoil", price1stEdHolofoil],
         ]
+
         let anyVariantSet = false
         for (const [variant, price] of variantPrices) {
-          if (price != null) {
+          if (price != null && price > 0) {
             anyVariantSet = true
             historyRows.push({ card_id: cardId, variant, price, recorded_at: today })
           }
         }
-        if (!anyVariantSet && marketPrice != null) {
-          historyRows.push({ card_id: cardId, variant: "Standard", price: marketPrice, recorded_at: today })
+        if (!anyVariantSet && marketPrice != null && marketPrice > 0) {
+          historyRows.push({
+            card_id: cardId,
+            variant: "Standard",
+            price: marketPrice,
+            recorded_at: today,
+          })
         }
       }
 
-      const { error } = await supabase.from("cards").upsert(rows)
-      if (!error) totalSynced += rows.length
+      let setFailed = false
 
-      if (historyRows.length > 0) {
-        await supabase
-          .from("card_price_history")
-          .upsert(historyRows, { onConflict: "card_id,variant,recorded_at" })
+      for (const batch of chunk(rows, 500)) {
+        const { error } = await supabase.from("cards").upsert(batch)
+        if (error) {
+          setFailed = true
+          errors.push(label + " cards upsert: " + error.message)
+          break
+        }
+        cardsSynced += batch.length
+      }
+
+      if (!setFailed && historyRows.length > 0) {
+        for (const batch of chunk(historyRows, 500)) {
+          const { error } = await supabase
+            .from("card_price_history")
+            .upsert(batch, { onConflict: "card_id,variant,recorded_at" })
+          if (error) {
+            errors.push(label + " history upsert: " + error.message)
+            break
+          }
+          historyRowsWritten += batch.length
+        }
+      }
+
+      if (setFailed) {
+        setsSkipped.push(label + " (upsert failed)")
+      } else {
+        setsProcessed.push(label)
       }
     }
 
-    setsProcessed.push(`${set.region}:${set.setName}`)
     index++
+    await saveCursor(index)
   }
 
-  await supabase
-    .from("sync_state")
-    .upsert({ id: "cards_sync_tcg", last_set_index: index, last_run_at: new Date().toISOString() })
-
   return NextResponse.json({
+    recordedAt: today,
     setsProcessed,
-    cardsSynced: totalSynced,
+    setsSkipped,
+    errors,
+    cardsSynced,
+    historyRowsWritten,
     nextIndex: index,
     totalSets: allSets.length,
+    passesCompleted,
+    elapsedMs: Date.now() - startTime,
   })
 }
