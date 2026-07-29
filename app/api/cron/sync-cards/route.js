@@ -35,15 +35,6 @@ function pickPrice(tcg, preferredKeys) {
   return null
 }
 
-function easternDateString() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date())
-}
-
 function chunk(arr, size) {
   const out = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
@@ -110,13 +101,13 @@ export async function GET(request) {
   if (index >= allSets.length) index = 0
 
   const startTime = Date.now()
-  const today = easternDateString()
+  const seenIds = new Set()
 
   const setsProcessed = []
   const setsSkipped = []
   const errors = []
   let cardsSynced = 0
-  let historyRowsWritten = 0
+  let duplicatesSkipped = 0
   let passesCompleted = 0
 
   async function saveCursor(i) {
@@ -152,20 +143,18 @@ export async function GET(request) {
     } else {
       const prices = pricingJson.prices
       const skuProducts = skusJson?.products || {}
-
       const rows = []
-      const historyRows = []
 
       for (const p of products) {
-        const tcg = prices[String(p.id)]?.tcg || {}
         const cardId = "tcg" + set.category + "-" + p.id
 
-        const priceNormal = tcg["Normal"]?.market ?? null
-        const priceHolofoil = tcg["Holofoil"]?.market ?? null
-        const priceReverseHolofoil = tcg["Reverse Holofoil"]?.market ?? null
-        const price1stEdHolofoil =
-          tcg["1st Edition Holofoil"]?.market ?? tcg["1st Edition"]?.market ?? null
-        const marketPrice = pickPrice(tcg, ["Holofoil", "Normal", "Reverse Holofoil"])
+        if (seenIds.has(cardId)) {
+          duplicatesSkipped++
+          continue
+        }
+        seenIds.add(cardId)
+
+        const tcg = prices[String(p.id)]?.tcg || {}
 
         rows.push({
           id: cardId,
@@ -180,37 +169,15 @@ export async function GET(request) {
           region: set.region,
           set_abbr: p.set_abbr || set.setAbbr,
           tcgplayer_url: p.tcgplayer_url,
-          tcgplayer_market_price: marketPrice,
-          price_normal: priceNormal,
-          price_holofoil: priceHolofoil,
-          price_reverse_holofoil: priceReverseHolofoil,
-          price_1st_edition_holofoil: price1stEdHolofoil,
+          tcgplayer_market_price: pickPrice(tcg, ["Holofoil", "Normal", "Reverse Holofoil"]),
+          price_normal: tcg["Normal"]?.market ?? null,
+          price_holofoil: tcg["Holofoil"]?.market ?? null,
+          price_reverse_holofoil: tcg["Reverse Holofoil"]?.market ?? null,
+          price_1st_edition_holofoil:
+            tcg["1st Edition Holofoil"]?.market ?? tcg["1st Edition"]?.market ?? null,
           raw_skus: skuProducts[String(p.id)] || null,
           synced_at: new Date().toISOString(),
         })
-
-        const variantPrices = [
-          ["Normal", priceNormal],
-          ["Holofoil", priceHolofoil],
-          ["Reverse Holofoil", priceReverseHolofoil],
-          ["1st Edition Holofoil", price1stEdHolofoil],
-        ]
-
-        let anyVariantSet = false
-        for (const [variant, price] of variantPrices) {
-          if (price != null && price > 0) {
-            anyVariantSet = true
-            historyRows.push({ card_id: cardId, variant, price, recorded_at: today })
-          }
-        }
-        if (!anyVariantSet && marketPrice != null && marketPrice > 0) {
-          historyRows.push({
-            card_id: cardId,
-            variant: "Standard",
-            price: marketPrice,
-            recorded_at: today,
-          })
-        }
       }
 
       let setFailed = false
@@ -225,19 +192,6 @@ export async function GET(request) {
         cardsSynced += batch.length
       }
 
-      if (!setFailed && historyRows.length > 0) {
-        for (const batch of chunk(historyRows, 500)) {
-          const { error } = await supabase
-            .from("card_price_history")
-            .upsert(batch, { onConflict: "card_id,variant,recorded_at" })
-          if (error) {
-            errors.push(label + " history upsert: " + error.message)
-            break
-          }
-          historyRowsWritten += batch.length
-        }
-      }
-
       if (setFailed) {
         setsSkipped.push(label + " (upsert failed)")
       } else {
@@ -250,12 +204,11 @@ export async function GET(request) {
   }
 
   return NextResponse.json({
-    recordedAt: today,
     setsProcessed,
     setsSkipped,
     errors,
     cardsSynced,
-    historyRowsWritten,
+    duplicatesSkipped,
     nextIndex: index,
     totalSets: allSets.length,
     passesCompleted,
