@@ -129,6 +129,8 @@ export async function addCardToCollection(formData) {
     ? Number(formData.get("purchase_price"))
     : null
   const collectionId = formData.get("collection_id") || null
+  const isGraded = formData.get("is_graded") === "yes"
+  const gradeValue = isGraded ? formData.get("grade_value") || null : null
 
   let existingQuery = supabase
     .from("user_cards")
@@ -137,7 +139,12 @@ export async function addCardToCollection(formData) {
     .eq("card_id", cardId)
     .eq("condition", condition)
     .eq("variant", variant)
+    .eq("is_graded", isGraded)
     .is("sold_at", null)
+
+  existingQuery = gradeValue
+    ? existingQuery.eq("grade_value", gradeValue)
+    : existingQuery.is("grade_value", null)
 
   existingQuery =
     purchasePrice == null
@@ -178,6 +185,8 @@ export async function addCardToCollection(formData) {
       condition,
       collection_id: collectionId,
       variant,
+      is_graded: isGraded,
+      grade_value: gradeValue,
     })
     if (error) throw new Error(error.message)
   }

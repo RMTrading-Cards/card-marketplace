@@ -549,6 +549,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       soldPrice: item.sold_price,
       soldAt: item.sold_at,
       cardMeta: item.cards,
+      isGraded: item.is_graded,
+      gradeValue: item.grade_value,
     }))
     const sealedRows = (mySealed || []).map((item) => ({
       kind: "sealed",
@@ -768,7 +770,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       )}
                       <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 4 }}>
                         <button
-                          onClick={() => setHistoryModal({ cardId: card?.id, variant: row.variant || "Standard", name: card?.name, cardNumber: card?.card_number, condition: row.condition, isGraded: card?.is_graded, gradeValue: card?.grade_value })}
+                          onClick={() => setHistoryModal({ cardId: card?.id, variant: row.variant || "Standard", name: card?.name, cardNumber: card?.card_number, condition: row.condition, isGraded: row.isGraded, gradeValue: row.gradeValue })}
                           className="rmt-tab"
                           style={{ marginTop: 4, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}
                         >
@@ -778,8 +780,8 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           card={card}
                           condition={row.condition}
                           variant={row.variant}
-                          isGraded={card?.is_graded}
-                          gradeValue={card?.grade_value}
+                          isGraded={row.isGraded}
+                          gradeValue={row.gradeValue}
                         />
                       </div>
                     </div>
@@ -796,6 +798,11 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       {card?.rarity && (
                         <div style={{ color: "#F2B705", fontSize: 12, marginTop: 2 }}>
                           {card.rarity} - {row.variant || "Standard"}
+                        </div>
+                      )}
+                      {row.isGraded && (
+                        <div style={{ color: "#F2B705", fontSize: 12, marginTop: 2, fontWeight: 700 }}>
+                          Graded: {row.gradeValue}
                         </div>
                       )}
                       <div style={{ fontSize: 13, marginTop: 6, marginBottom: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>

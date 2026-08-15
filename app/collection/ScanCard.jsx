@@ -82,10 +82,14 @@ function CandidateCard(props) {
     const formData = new FormData()
     formData.set("card_id", card.id)
     formData.set("variant", variant)
-    formData.set("condition", condition)
+    formData.set("condition", "NM")
     formData.set("quantity", quantity)
-    formData.set("purchase_price", purchasePrice)
     formData.set("collection_id", collectionId || "")
+    formData.set("is_graded", isGraded ? "yes" : "no")
+    if (isGraded) {
+      formData.set("grade_value", gradingCompany + " " + gradeValue)
+    }
+
     await addCardToCollection(formData)
     setSubmitting(false)
     router.refresh()
