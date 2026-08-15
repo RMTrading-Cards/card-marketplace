@@ -1316,3 +1316,38 @@ export async function claimQuoteSession(quoteId, targetCollectionId) {
 
   revalidatePath("/collection")
 }
+
+export async function importQuoteAsCollection(quoteId, collectionName, items) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const { data: newCollection, error: colError } = await supabase
+    .from("collections")
+    .insert({ user_id: user.id, name: collectionName })
+    .select()
+    .single()
+  if (colError) throw new Error(colError.message)
+
+  for (const item of items) {
+    const { error } = await supabase.from("user_cards").insert({
+      user_id: user.id,
+      card_id: item.cardId,
+      quantity: item.quantity,
+      condition: item.isGraded ? "NM" : item.condition,
+      variant: item.variant,
+      is_graded: item.isGraded,
+      grade_value: item.isGraded ? item.gradeValue : null,
+      collection_id: newCollection.id,
+    })
+    if (error) throw new Error(error.message)
+  }
+
+  await supabase
+    .from("quote_sessions")
+    .update({ claimed: true, claimed_by: user.id, claimed_at: new Date().toISOString() })
+    .eq("id", quoteId)
+
+  revalidatePath("/collection")
+  return newCollection.id
+}

@@ -267,13 +267,22 @@ export default function QuoteScan({ quoteId }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {addedItems.map(function (item) {
                 return (
-                  <div key={item.id} style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 6, padding: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ color: "#ffffff", fontSize: 13 }}>
-                      {item.cards?.name} - Qty {item.quantity} - {item.is_graded ? item.grade_value : item.condition}
+                  <div key={item.id} style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 6, padding: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                      {item.cards?.image_small && (
+                        <img
+                          src={item.cards.image_small}
+                          alt={item.cards.name}
+                          style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 4, flexShrink: 0 }}
+                        />
+                      )}
+                      <div style={{ color: "#ffffff", fontSize: 13 }}>
+                        {item.cards?.name} - Qty {item.quantity} - {item.is_graded ? item.grade_value : item.condition}
+                      </div>
                     </div>
                     <button
                       onClick={function () { handleRemove(item.id) }}
-                      style={{ backgroundColor: "#2a1414", color: "#f87171", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}
+                      style={{ backgroundColor: "#2a1414", color: "#f87171", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
                     >
                       Remove
                     </button>
@@ -295,7 +304,7 @@ export default function QuoteScan({ quoteId }) {
               </button>
             ) : (
               <div style={{ backgroundColor: "#141414", border: "1px solid #F2B705", borderRadius: 10, padding: 20, display: "inline-block" }}>
-                <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 12 }}>Show this to the seller</p>
+                <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 12 }}>Show this to us</p>
                 <img
                   src={"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(shareUrl)}
                   alt="QR code"

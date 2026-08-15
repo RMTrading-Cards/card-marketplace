@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -6,8 +6,6 @@ import { updateUsername, refreshCardsData, refreshSealedData, getSyncStatus } fr
 
 function formatSyncTime(iso) {
   if (!iso) return "Never"
-  // Ensure the timestamp is treated as UTC even if the string lacks a timezone marker,
-  // then let the browser convert it to the user's local time correctly.
   const hasTimezoneMarker = /Z|[+-]\d{2}:\d{2}$/.test(iso)
   const d = new Date(hasTimezoneMarker ? iso : iso + "Z")
   const yyyy = d.getFullYear()
