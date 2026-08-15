@@ -1020,7 +1020,7 @@ export async function scanCardImage(base64Data) {
     }
   }
 
-  const STAGE_WORDS = { BASIC: true, STAGE: true, HP: true }
+  const STAGE_WORDS = { BASIC: true, STAGE: true, "たね": true, HP: true }
 
   const allY = words.map(function (w) {
     return w.boundingPoly && w.boundingPoly.vertices && w.boundingPoly.vertices[0] ? w.boundingPoly.vertices[0].y || 0 : 0
@@ -1132,6 +1132,8 @@ export async function scanCardImage(base64Data) {
     else if (c.name && nameLower && c.name.toLowerCase().includes(nameLower)) score += 5
     if (visualIds.has(c.id)) score += 10
     if (detectedSetAbbr && c.set_abbr && c.set_abbr.toUpperCase() === detectedSetAbbr) score += 50
+    if (detectedNonLatin && c.region === "JP") score += 30
+    if (!detectedNonLatin && c.region === "US") score += 15
     return { card: c, score }
   })
 
