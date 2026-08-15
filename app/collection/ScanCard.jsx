@@ -14,18 +14,50 @@ const inputStyle = {
   boxSizing: "border-box",
 }
 
-function resizeAndEncode(file) {
+function readAsBase64(file) {
   return new Promise(function (resolve, reject) {
     const reader = new FileReader()
     reader.onload = function () {
-      const base64 = reader.result.split(",")[1]
-      resolve(base64)
+      resolve(reader.result.split(",")[1])
     }
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
 }
 
+async function resizeAndEncode(file) {
+  try {
+    const bitmap = await createImageBitmap(file)
+    const maxDim = 1200
+    let width = bitmap.width
+    let height = bitmap.height
+
+    if (width > height && width > maxDim) {
+      height = Math.round(height * (maxDim / width))
+      width = maxDim
+    } else if (height > maxDim) {
+      width = Math.round(width * (maxDim / height))
+      height = maxDim
+    }
+
+    const canvas = document.createElement("canvas")
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext("2d")
+    ctx.drawImage(bitmap, 0, 0, width, height)
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85)
+    const base64 = dataUrl.split(",")[1]
+
+    if (!base64 || base64.length < 1000) {
+      throw new Error("Resize produced an empty or invalid image")
+    }
+
+    return base64
+  } catch (err) {
+    return readAsBase64(file)
+  }
+}
 function CandidateCard(props) {
   const card = props.card
   const collectionId = props.collectionId
