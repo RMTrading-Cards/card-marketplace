@@ -16,34 +16,10 @@ const inputStyle = {
 
 function resizeAndEncode(file) {
   return new Promise(function (resolve, reject) {
-    const img = new Image()
     const reader = new FileReader()
-
     reader.onload = function () {
-      img.onload = function () {
-        const maxDim = 1200
-        let width = img.width
-        let height = img.height
-
-        if (width > height && width > maxDim) {
-          height = Math.round(height * (maxDim / width))
-          width = maxDim
-        } else if (height > maxDim) {
-          width = Math.round(width * (maxDim / height))
-          height = maxDim
-        }
-
-        const canvas = document.createElement("canvas")
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext("2d")
-        ctx.drawImage(img, 0, 0, width, height)
-
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.85)
-        resolve(dataUrl.split(",")[1])
-      }
-      img.onerror = reject
-      img.src = reader.result
+      const base64 = reader.result.split(",")[1]
+      resolve(base64)
     }
     reader.onerror = reject
     reader.readAsDataURL(file)
