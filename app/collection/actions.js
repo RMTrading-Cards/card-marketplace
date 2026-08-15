@@ -1012,12 +1012,84 @@ export async function scanCardImage(imageUrl) {
     return { name: null, cardNumber: cardNumber, candidates: [] }
   }
 
-  const searchQuery = cardNumber ? name + " " + cardNumber : name
-  const searchResult = await searchCards(searchQuery, "name", 1, 10)
+  let candidates = []
+  if (name) {
+    const searchQuery = cardNumber ? name + " " + cardNumber : name
+    const searchResult = await searchCards(searchQuery, "name", 1, 6)
+    candidates = searchResult.results || []
+  }
+
+  const seenIds = new Set(candidates.map((c) => c.id))
+  const visualMatches = await getVisualMatches(imageUrl)
+  for (const match of visualMatches) {
+    if (!seenIds.has(match.id) && candidates.length < 10) {
+      candidates.push(match)
+      seenIds.add(match.id)
+    }
+  }
 
   return {
     name: name,
     cardNumber: cardNumber,
-    candidates: searchResult.results || [],
+    candidates: candidates,
   }
+}
+
+function hammingDistance(hashA, hashB) {
+  if (!hashA || !hashB || hashA.length !== hashB.length) return Infinity
+  let distance = 0
+  for (let i = 0; i < hashA.length; i++) {
+    let xor = parseInt(hashA[i], 16) ^ parseInt(hashB[i], 16)
+    while (xor) {
+      distance += xor & 1
+      xor >>= 1
+    }
+  }
+  return distance
+}
+
+export async function getVisualMatches(imageUrl) {
+  const imghash = (await import("imghash")).default
+  const fs = await import("fs")
+  const path = await import("path")
+  const os = await import("os")
+
+  const res = await fetch(imageUrl)
+  const buffer = Buffer.from(await res.arrayBuffer())
+  const tempPath = path.join(os.tmpdir(), "scan-" + Date.now() + ".jpg")
+  fs.writeFileSync(tempPath, buffer)
+
+  let scanHash
+  try {
+    scanHash = await imghash.hash(tempPath, 16)
+  } catch {
+    fs.unlinkSync(tempPath)
+    return []
+  }
+  fs.unlinkSync(tempPath)
+
+  const supabase = await createClient()
+  const { data: allHashes } = await supabase
+    .from("cards")
+    .select("id, image_phash")
+    .not("image_phash", "is", null)
+
+  if (!allHashes || allHashes.length === 0) return []
+
+  const scored = allHashes
+    .map((c) => ({ id: c.id, distance: hammingDistance(scanHash, c.image_phash) }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 10)
+
+  const topIds = scored.map((s) => s.id)
+
+  const { data: fullCards } = await supabase
+    .from("cards")
+    .select("id, name, set_name, card_number, set_total, release_year, rarity, image_small, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus, region")
+    .in("id", topIds)
+
+  const byId = {}
+  for (const c of fullCards || []) byId[c.id] = c
+
+  return scored.map((s) => byId[s.id]).filter(Boolean)
 }
