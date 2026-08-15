@@ -1,15 +1,13 @@
 ﻿"use client"
 import { useState, useMemo, useEffect } from "react"
-import React from "react"
 import { useRouter } from "next/navigation"
 import AddCardsSearch from "./AddCardsSearch"
 import AddSealedSearch from "./AddSealedSearch"
 import ManualAddCard from "./ManualAddCard"
+import ScanCard from "./ScanCard"
 import CollectionSelector from "./CollectionSelector"
 import PriceHistoryModal from "./PriceHistoryModal"
-import { getEbaySoldLink } from "@/lib/ebay"
-import EbaySoldButton from "./EbaySoldButton";
-
+import EbaySoldButton from "./EbaySoldButton"
 import {
   removeCardFromCollection,
   removeSealedFromCollection,
@@ -494,28 +492,6 @@ function MoveToMainButton({ id, itemType, mainCollectionId }) {
   )
 }
 
-function EbayLinkButton({ name, cardNumber, condition, variant, isGraded, gradeValue }) {
-  return React.createElement(
-    "a",
-    {
-      href: getEbaySoldLink(name, cardNumber, { condition, variant, isGraded, gradeValue }),
-      target: "_blank",
-      rel: "noopener noreferrer",
-      style: {
-        backgroundColor: "#0d0d0d",
-        border: "1px solid #2a2a2a",
-        color: "#9ca3af",
-        borderRadius: 6,
-        padding: "3px 8px",
-        fontSize: 11,
-        textDecoration: "none",
-        display: "inline-block",
-      },
-    },
-    "🔗 Sold on eBay"
-  )
-}
-
 const cardBox = { backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12, display: "flex", gap: 12, flexWrap: "wrap" }
 const imageCol = { flex: "1 1 40%", maxWidth: 200, minWidth: 110 }
 const infoCol = { flex: "1 1 50%", minWidth: 150, color: "#ffffff" }
@@ -706,6 +682,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
         <button className={"rmt-tab" + (tab === "cards" ? " rmt-tab-active" : "")} onClick={() => setTab("cards")} style={tabButtonBase}>Add Cards</button>
         <button className={"rmt-tab" + (tab === "sealed" ? " rmt-tab-active" : "")} onClick={() => setTab("sealed")} style={tabButtonBase}>Add Sealed</button>
         <button className={"rmt-tab" + (tab === "manual" ? " rmt-tab-active" : "")} onClick={() => setTab("manual")} style={tabButtonBase}>Manual Add Card</button>
+        <button className={"rmt-tab" + (tab === "scan" ? " rmt-tab-active" : "")} onClick={() => setTab("scan")} style={tabButtonBase}>Scan Card</button>
       </div>
 
       {tab === "collection" && (
@@ -795,11 +772,10 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           className="rmt-tab"
                           style={{ marginTop: 4, backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#F2B705", borderRadius: 6, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}
                         >
-                          📈 More Data
+                          More Data
                         </button>
-                        <EbayLinkButton
-                          name={card?.name}
-                          cardNumber={card?.card_number}
+                        <EbaySoldButton
+                          card={card}
                           condition={row.condition}
                           variant={row.variant}
                           isGraded={card?.is_graded}
@@ -886,7 +862,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                       </div>
                     )}
                     <div style={{ textAlign: "center" }}>
-                      <EbayLinkButton name={row.name} cardNumber={null} />
+                      <EbaySoldButton card={{ name: row.name, card_number: null }} />
                     </div>
                   </div>
                   <div style={infoCol}>
@@ -1039,6 +1015,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       {tab === "cards" && <AddCardsSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
       {tab === "sealed" && <AddSealedSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
       {tab === "manual" && <ManualAddCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
+      {tab === "scan" && <ScanCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
 
       {historyModal && (
         <PriceHistoryModal
