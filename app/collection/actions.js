@@ -996,7 +996,7 @@ export async function scanCardImage(imageUrl) {
     if (y > topThird) continue
     if (word.description.length < 3) continue
     if (STAGE_WORDS[word.description.toUpperCase()]) continue
-    if (/^\.?\d+([.,]\d+)?$/.test(word.description)) continue
+    if (/\d/.test(word.description)) continue
 
     const ys = verts.map(function (v) { return v.y || 0 })
     const height = Math.max.apply(null, ys) - Math.min.apply(null, ys)
