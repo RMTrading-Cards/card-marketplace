@@ -940,3 +940,84 @@ export async function refreshSealedData() {
   revalidatePath("/collection")
   return json
 }
+
+export async function scanCardImage(imageUrl) {
+  const API_KEY = process.env.GOOGLE_VISION_API_KEY
+
+  const visionRes = await fetch(
+    "https://vision.googleapis.com/v1/images:annotate?key=" + API_KEY,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [
+          {
+            image: { source: { imageUri: imageUrl } },
+            features: [{ type: "TEXT_DETECTION" }],
+          },
+        ],
+      }),
+    }
+  )
+  const visionData = await visionRes.json()
+
+  const annotations = visionData.responses && visionData.responses[0] ? visionData.responses[0].textAnnotations : null
+  if (!annotations || annotations.length === 0) {
+    return { name: null, cardNumber: null, candidates: [] }
+  }
+
+  const words = annotations.slice(1)
+
+  const numberPattern = /^([A-Z]{0,3}\d+)\/([A-Z]{0,3}\d+)$/
+  let cardNumber = null
+  for (let i = 0; i < words.length; i++) {
+    const match = words[i].description.match(numberPattern)
+    if (match) {
+      cardNumber = match[1]
+      break
+    }
+  }
+
+  const STAGE_WORDS = { BASIC: true, STAGE: true, EX: true, GX: true, V: true, VMAX: true, VSTAR: true, MEGA: true, TAG: true, TEAM: true }
+
+  const allY = words.map(function (w) {
+    return w.boundingPoly && w.boundingPoly.vertices && w.boundingPoly.vertices[0] ? w.boundingPoly.vertices[0].y || 0 : 0
+  })
+  const minY = Math.min.apply(null, allY)
+  const maxY = Math.max.apply(null, allY)
+  const topThird = minY + (maxY - minY) * 0.35
+
+  let bestWord = null
+  let bestHeight = 0
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i]
+    const verts = (word.boundingPoly && word.boundingPoly.vertices) || []
+    const y = verts[0] ? (verts[0].y || Infinity) : Infinity
+    if (y > topThird) continue
+    if (word.description.length < 3) continue
+    if (STAGE_WORDS[word.description.toUpperCase()]) continue
+    if (/^\.?\d+([.,]\d+)?$/.test(word.description)) continue
+
+    const ys = verts.map(function (v) { return v.y || 0 })
+    const height = Math.max.apply(null, ys) - Math.min.apply(null, ys)
+    if (height > bestHeight) {
+      bestHeight = height
+      bestWord = word
+    }
+  }
+
+  const name = bestWord ? bestWord.description : null
+
+  if (!name) {
+    return { name: null, cardNumber: cardNumber, candidates: [] }
+  }
+
+  const searchQuery = cardNumber ? name + " " + cardNumber : name
+  const searchResult = await searchCards(searchQuery, "name", 1, 10)
+
+  return {
+    name: name,
+    cardNumber: cardNumber,
+    candidates: searchResult.results || [],
+  }
+}
