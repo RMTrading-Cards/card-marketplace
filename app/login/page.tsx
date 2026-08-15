@@ -8,8 +8,24 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [quoteLoading, setQuoteLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  async function handleRequestQuote() {
+    setQuoteLoading(true)
+    try {
+      const res = await fetch('/api/quote/create', { method: 'POST' })
+      const data = await res.json()
+      if (data.id) {
+        router.push('/quote/' + data.id)
+      }
+    } catch (err) {
+      setError('Could not start a quote session. Please try again.')
+    } finally {
+      setQuoteLoading(false)
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -94,6 +110,28 @@ export default function Login() {
               Sign up
             </a>
           </p>
+          <div style={{ borderTop: '1px solid #2a2a2a', marginTop: 20, paddingTop: 16, textAlign: 'center' }}>
+            <p style={{ color: '#9ca3af', fontSize: 12, marginBottom: 10 }}>
+              Selling cards to us? Get a quote without an account.
+            </p>
+            <button
+              onClick={handleRequestQuote}
+              disabled={quoteLoading}
+              style={{
+                backgroundColor: '#0d0d0d',
+                border: '1px solid #F2B705',
+                color: '#F2B705',
+                fontWeight: 700,
+                borderRadius: 8,
+                padding: '10px 12px',
+                fontSize: 14,
+                cursor: quoteLoading ? 'default' : 'pointer',
+                width: '100%',
+              }}
+            >
+              {quoteLoading ? 'Starting...' : 'Request a Quote'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

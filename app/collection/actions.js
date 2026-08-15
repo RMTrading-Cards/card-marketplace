@@ -1226,3 +1226,93 @@ export async function getVisualMatches(buffer) {
 
   return scored.map((s) => byId[s.id]).filter(Boolean)
 }
+
+export async function createQuoteSession() {
+  const supabase = await createClient()
+  const id = Array.from({ length: 10 }, () =>
+    "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]
+  ).join("")
+
+  const { error } = await supabase.from("quote_sessions").insert({ id })
+  if (error) throw new Error(error.message)
+  return id
+}
+
+export async function getQuoteSession(quoteId) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("quote_sessions")
+    .select("*")
+    .eq("id", quoteId)
+    .maybeSingle()
+  return data
+}
+
+export async function addItemToQuote(formData) {
+  const supabase = await createClient()
+  const quoteSessionId = formData.get("quote_session_id")
+  const cardId = formData.get("card_id")
+  const variant = formData.get("variant") || "Standard"
+  const condition = formData.get("condition") || "NM"
+  const isGraded = formData.get("is_graded") === "yes"
+  const gradeValue = isGraded ? formData.get("grade_value") || null : null
+  const quantity = Number(formData.get("quantity")) || 1
+
+  const { error } = await supabase.from("quote_items").insert({
+    quote_session_id: quoteSessionId,
+    card_id: cardId,
+    variant,
+    condition,
+    is_graded: isGraded,
+    grade_value: gradeValue,
+    quantity,
+  })
+  if (error) throw new Error(error.message)
+}
+
+export async function getQuoteItems(quoteId) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("quote_items")
+    .select(
+      "id, variant, condition, is_graded, grade_value, quantity, created_at, cards(id, name, set_name, card_number, set_total, rarity, image_small, region, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus)"
+    )
+    .eq("quote_session_id", quoteId)
+    .order("created_at", { ascending: true })
+  return data || []
+}
+
+export async function removeQuoteItem(itemId) {
+  const supabase = await createClient()
+  const { error } = await supabase.from("quote_items").delete().eq("id", itemId)
+  if (error) throw new Error(error.message)
+}
+
+export async function claimQuoteSession(quoteId, targetCollectionId) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const items = await getQuoteItems(quoteId)
+
+  for (const item of items) {
+    if (!item.cards) continue
+    await supabase.from("user_cards").insert({
+      user_id: user.id,
+      card_id: item.cards.id,
+      quantity: item.quantity,
+      condition: item.condition,
+      variant: item.variant,
+      is_graded: item.is_graded,
+      grade_value: item.grade_value,
+      collection_id: targetCollectionId,
+    })
+  }
+
+  await supabase
+    .from("quote_sessions")
+    .update({ claimed: true, claimed_by: user.id, claimed_at: new Date().toISOString() })
+    .eq("id", quoteId)
+
+  revalidatePath("/collection")
+}
