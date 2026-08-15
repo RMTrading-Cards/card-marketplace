@@ -790,9 +790,9 @@ const getKnownSetAbbrs = unstable_cache(
       .select("set_abbr")
       .not("set_abbr", "is", null)
 
-    const unique = new Set()
+    const unique = {}
     for (const row of data || []) {
-      if (row.set_abbr) unique.add(row.set_abbr.toUpperCase())
+      if (row.set_abbr) unique[row.set_abbr.toUpperCase()] = true
     }
     return unique
   },
@@ -1112,7 +1112,7 @@ export async function scanCardImage(base64Data) {
     if (!/^[A-Z0-9]+$/.test(text)) continue
     if (text === "EN" || text === "JP") continue
 
-    if (knownAbbrs.has(text)) {
+    if (knownAbbrs[text]) {
       detectedSetAbbr = text
       break
     }
