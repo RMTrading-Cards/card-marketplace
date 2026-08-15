@@ -1,0 +1,254 @@
+﻿"use client"
+import { useState, useRef } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { scanCardImage, addCardToCollection } from "./actions"
+
+const inputStyle = {
+  width: "100%",
+  backgroundColor: "#0d0d0d",
+  border: "1px solid #2a2a2a",
+  color: "#ffffff",
+  borderRadius: 6,
+  padding: "8px 10px",
+  fontSize: 16,
+  boxSizing: "border-box",
+}
+
+function CandidateCard({ card, onConfirm, collectionId, onAdded }) {
+  const router = useRouter()
+  const [condition, setCondition] = useState("NM")
+  const [quantity, setQuantity] = useState(1)
+  const [purchasePrice, setPurchasePrice] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+
+  const variants = []
+  if (card.price_normal != null) variants.push({ key: "Normal", price: card.price_normal })
+  if (card.price_holofoil != null) variants.push({ key: "Holofoil", price: card.price_holofoil })
+  if (card.price_reverse_holofoil != null) variants.push({ key: "Reverse Holofoil", price: card.price_reverse_holofoil })
+  if (card.price_1st_edition_holofoil != null) variants.push({ key: "1st Edition Holofoil", price: card.price_1st_edition_holofoil })
+  if (variants.length === 0) variants.push({ key: "Standard", price: card.tcgplayer_market_price })
+
+  const [variant, setVariant] = useState(variants[0].key)
+
+  async function handleAdd() {
+    setSubmitting(true)
+    const formData = new FormData()
+    formData.set("card_id", card.id)
+    formData.set("variant", variant)
+    formData.set("condition", condition)
+    formData.set("quantity", quantity)
+    formData.set("purchase_price", purchasePrice)
+    formData.set("collection_id", collectionId || "")
+    await addCardToCollection(formData)
+    setSubmitting(false)
+    router.refresh()
+    onAdded()
+  }
+
+  return (
+    <div
+      style={{
+        backgroundColor: "#141414",
+        border: "1px solid #2a2a2a",
+        borderRadius: 8,
+        padding: 12,
+        display: "flex",
+        gap: 12,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ flex: "1 1 35%", maxWidth: 160 }}>
+        {card.image_small && (
+          <img src={card.image_small} alt={card.name} style={{ width: "100%", borderRadius: 6 }} />
+        )}
+      </div>
+      <div style={{ flex: "1 1 55%", minWidth: 180, color: "#ffffff" }}>
+        <strong>
+          {card.region === "JP" ? "JP " : ""}{card.name}
+          {card.card_number && card.set_total && (
+            <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
+          )}
+        </strong>
+        <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 8 }}>{card.set_name}</div>
+
+        <select value={variant} onChange={(e) => setVariant(e.target.value)} style={{ ...inputStyle, marginBottom: 6 }}>
+          {variants.map((v) => (
+            <option key={v.key} value={v.key}>{v.key}</option>
+          ))}
+        </select>
+        <select value={condition} onChange={(e) => setCondition(e.target.value)} style={{ ...inputStyle, marginBottom: 6 }}>
+          <option value="NM">Near Mint</option>
+          <option value="LP">Lightly Played</option>
+          <option value="MP">Moderately Played</option>
+          <option value="HP">Heavily Played</option>
+          <option value="DMG">Damaged</option>
+        </select>
+        <select value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} style={{ ...inputStyle, marginBottom: 6 }}>
+          {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+            <option key={n} value={n}>Qty: {n}</option>
+          ))}
+        </select>
+        <input
+          type="number"
+          step="0.01"
+          placeholder="Your purchase price"
+          value={purchasePrice}
+          onChange={(e) => setPurchasePrice(e.target.value)}
+          style={{ ...inputStyle, marginBottom: 8 }}
+        />
+
+        <button
+          onClick={handleAdd}
+          disabled={submitting}
+          className="rmt-btn"
+          style={{
+            width: "100%",
+            backgroundColor: "#F2B705",
+            color: "#000000",
+            fontWeight: 600,
+            borderRadius: 6,
+            padding: "8px 12px",
+            fontSize: 14,
+            border: "none",
+            cursor: submitting ? "default" : "pointer",
+          }}
+        >
+          {submitting ? "Adding..." : "This is the card - Add to Collection"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function ScanCard({ collectionId, onAdded }) {
+  const [imagePreview, setImagePreview] = useState(null)
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState(null)
+  const [error, setError] = useState("")
+  const fileInputRef = useRef(null)
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setError("")
+    setScanResult(null)
+    setImagePreview(URL.createObjectURL(file))
+    setScanning(true)
+
+    try {
+      const supabase = createClient()
+      const ext = file.name.split(".").pop()
+      const path = "scans/" + Date.now() + "-" + Math.random().toString(36).slice(2) + "." + ext
+
+      const { error: uploadError } = await supabase.storage.from("card-images").upload(path, file)
+      if (uploadError) throw new Error(uploadError.message)
+
+      const { data: publicUrlData } = supabase.storage.from("card-images").getPublicUrl(path)
+      const imageUrl = publicUrlData.publicUrl
+
+      const result = await scanCardImage(imageUrl)
+      setScanResult(result)
+    } catch (err) {
+      setError(err.message || "Something went wrong scanning this card")
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  function handleAdded() {
+    setImagePreview(null)
+    setScanResult(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+    onAdded()
+  }
+
+  function handleScanAnother() {
+    setImagePreview(null)
+    setScanResult(null)
+    setError("")
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  return (
+    <div style={{ maxWidth: 700 }}>
+      <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+        Scan a Card
+      </h2>
+      <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 20 }}>
+        Take a clear, well-lit photo of the card. Works best held flat with the whole card in frame.
+      </p>
+
+      {!imagePreview && (
+        <label
+          style={{
+            display: "block",
+            backgroundColor: "#141414",
+            border: "2px dashed #3a3a3a",
+            borderRadius: 10,
+            padding: "40px 20px",
+            textAlign: "center",
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ color: "#F2B705", fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+            Tap to Open Camera
+          </div>
+          <div style={{ color: "#9ca3af", fontSize: 13 }}>or choose a photo from your gallery</div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+          />
+        </label>
+      )}
+
+      {imagePreview && (
+        <div style={{ marginBottom: 16 }}>
+          <img src={imagePreview} alt="Scanned card" style={{ maxWidth: 240, borderRadius: 8, display: "block", marginBottom: 8 }} />
+          <button
+            onClick={handleScanAnother}
+            className="rmt-tab"
+            style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}
+          >
+            Scan a Different Photo
+          </button>
+        </div>
+      )}
+
+      {scanning && <p style={{ color: "#ffffff" }}>Reading card...</p>}
+
+      {error && <p style={{ color: "#f87171", marginBottom: 12 }}>{error}</p>}
+
+      {scanResult && !scanning && (
+        <div>
+          <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>
+            Best guess: <strong style={{ color: "#ffffff" }}>{scanResult.name || "Unknown"}</strong>
+            {scanResult.cardNumber && <span> - {scanResult.cardNumber}</span>}
+          </p>
+
+          {scanResult.candidates.length === 0 ? (
+            <p style={{ color: "#9ca3af", fontStyle: "italic" }}>
+              No matches found. Try a clearer photo, or use the regular Add Cards search instead.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {scanResult.candidates.map((card) => (
+                <CandidateCard
+                  key={card.id}
+                  card={card}
+                  collectionId={collectionId}
+                  onAdded={handleAdded}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
