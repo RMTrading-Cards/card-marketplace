@@ -1011,26 +1011,41 @@ export async function scanCardImage(base64Data) {
   const maxY = Math.max.apply(null, allY)
   const topThird = minY + (maxY - minY) * 0.35
 
-  let bestWord = null
-  let bestHeight = 0
+  const nameBandCandidates = []
   for (let i = 0; i < words.length; i++) {
     const word = words[i]
     const verts = (word.boundingPoly && word.boundingPoly.vertices) || []
     const y = verts[0] ? (verts[0].y || Infinity) : Infinity
     if (y > topThird) continue
-    if (word.description.length < 3) continue
+    if (word.description.length < 2) continue
     if (STAGE_WORDS[word.description.toUpperCase()]) continue
     if (/\d/.test(word.description)) continue
 
     const ys = verts.map(function (v) { return v.y || 0 })
     const height = Math.max.apply(null, ys) - Math.min.apply(null, ys)
-    if (height > bestHeight) {
-      bestHeight = height
-      bestWord = word
+    const x = verts[0] ? (verts[0].x || 0) : 0
+    nameBandCandidates.push({ word: word.description, y: y, x: x, height: height })
+  }
+
+  let bestWord = null
+  let bestHeight = 0
+  for (const c of nameBandCandidates) {
+    if (c.height > bestHeight) {
+      bestHeight = c.height
+      bestWord = c
     }
   }
 
-  const name = bestWord ? bestWord.description : null
+  let name = bestWord ? bestWord.word : null
+  if (bestWord) {
+    const lineTolerance = bestWord.height * 0.7
+    const sameLineWords = nameBandCandidates
+      .filter(function (c) { return Math.abs(c.y - bestWord.y) <= lineTolerance })
+      .sort(function (a, b) { return a.x - b.x })
+    if (sameLineWords.length > 1) {
+      name = sameLineWords.map(function (c) { return c.word }).join(" ")
+    }
+  }
 
   if (!name) {
     return { name: null, cardNumber: cardNumber, candidates: [] }
@@ -1063,7 +1078,7 @@ export async function scanCardImage(base64Data) {
 
   const targetNum = normalizeNumber(cardNumber)
   const nameLower = (name || "").toLowerCase().trim()
-  const visualIds = new Set(visualMatchesResult.map((c) => c.id))
+  const visualIds = new Set(effectiveVisualMatches.map((c) => c.id))
 
   const scored = candidates.map((c) => {
     let score = 0
@@ -1080,6 +1095,7 @@ export async function scanCardImage(base64Data) {
     name: name,
     cardNumber: cardNumberFull || cardNumber,
     candidates: scored.map((s) => s.card),
+    detectedNonLatin: detectedNonLatin,
   }
 }
 

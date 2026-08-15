@@ -265,10 +265,15 @@ export default function ScanCard(props) {
 
       {scanResult && !scanning && (
         <div>
-          <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>
+          <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 4 }}>
             Best guess: <strong style={{ color: "#ffffff" }}>{scanResult.name || "Unknown"}</strong>
             {scanResult.cardNumber && <span> - {scanResult.cardNumber}</span>}
           </p>
+          {scanResult.detectedNonLatin && (
+            <p style={{ color: "#F2B705", fontSize: 12, marginBottom: 12 }}>
+              Detected non-English text — card names in our database are stored in English, so matching relies on visual similarity only for this scan.
+            </p>
+          )}
 
           {scanResult.candidates.length === 0 ? (
             <p style={{ color: "#9ca3af", fontStyle: "italic" }}>
