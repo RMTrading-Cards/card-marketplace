@@ -782,6 +782,24 @@ export async function addManualCard(formData) {
   revalidatePath("/collection")
 }
 
+const getKnownSetAbbrs = unstable_cache(
+  async () => {
+    const supabase = createPublicClient()
+    const { data } = await supabase
+      .from("cards")
+      .select("set_abbr")
+      .not("set_abbr", "is", null)
+
+    const unique = new Set()
+    for (const row of data || []) {
+      if (row.set_abbr) unique.add(row.set_abbr.toUpperCase())
+    }
+    return unique
+  },
+  ["known-set-abbrs"],
+  { revalidate: 3600 }
+)
+
 export const getManualAddOptions = unstable_cache(
   async () => {
     const supabase = createPublicClient()
@@ -1078,6 +1096,27 @@ export async function scanCardImage(base64Data) {
 
   const targetNum = normalizeNumber(cardNumber)
   const nameLower = (name || "").toLowerCase().trim()
+
+  const bottomThird = maxY - (maxY - minY) * 0.25
+  const knownAbbrs = await getKnownSetAbbrs()
+  let detectedSetAbbr = null
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i]
+    const verts = (word.boundingPoly && word.boundingPoly.vertices) || []
+    const y = verts[0] ? (verts[0].y || 0) : 0
+    if (y < bottomThird) continue
+
+    const text = word.description.toUpperCase()
+    if (text.length < 2 || text.length > 5) continue
+    if (!/^[A-Z0-9]+$/.test(text)) continue
+    if (text === "EN" || text === "JP") continue
+
+    if (knownAbbrs.has(text)) {
+      detectedSetAbbr = text
+      break
+    }
+  }
   const detectedNonLatin = isLikelyNonLatin(name)
 
   let effectiveVisualMatches = visualMatchesResult
@@ -1092,6 +1131,7 @@ export async function scanCardImage(base64Data) {
     if (c.name && c.name.toLowerCase().trim() === nameLower) score += 20
     else if (c.name && nameLower && c.name.toLowerCase().includes(nameLower)) score += 5
     if (visualIds.has(c.id)) score += 10
+    if (detectedSetAbbr && c.set_abbr && c.set_abbr.toUpperCase() === detectedSetAbbr) score += 50
     return { card: c, score }
   })
 
