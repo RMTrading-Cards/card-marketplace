@@ -1,15 +1,33 @@
 ﻿import dotenv from "dotenv"
 dotenv.config({ path: ".env.local" })
 import { createClient } from "@supabase/supabase-js"
-import imghash from "imghash"
-import fs from "fs"
-import path from "path"
-import os from "os"
+import { Jimp, intToRGBA } from "jimp"
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
+
+async function computeHash(buffer) {
+  const image = await Jimp.read(buffer)
+  image.resize({ w: 9, h: 8 })
+  image.greyscale()
+
+  let bits = ""
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const left = intToRGBA(image.getPixelColor(x, y)).r
+      const right = intToRGBA(image.getPixelColor(x + 1, y)).r
+      bits += left < right ? "1" : "0"
+    }
+  }
+
+  let hex = ""
+  for (let i = 0; i < bits.length; i += 4) {
+    hex += parseInt(bits.substr(i, 4), 2).toString(16)
+  }
+  return hex
+}
 
 async function hashCard(card) {
   try {
@@ -19,11 +37,7 @@ async function hashCard(card) {
       return null
     }
     const buffer = Buffer.from(await res.arrayBuffer())
-    const tempPath = path.join(os.tmpdir(), `phash-${card.id}-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`)
-    fs.writeFileSync(tempPath, buffer)
-    const hash = await imghash.hash(tempPath, 16)
-    fs.unlinkSync(tempPath)
-    return hash
+    return await computeHash(buffer)
   } catch (err) {
     console.log(`  Error hashing ${card.id}: ${err.message}`)
     return null

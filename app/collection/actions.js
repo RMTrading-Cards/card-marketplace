@@ -2,6 +2,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createPublicClient } from "@/lib/supabase/public"
 import { revalidatePath, unstable_cache } from "next/cache"
+import { Jimp, intToRGBA } from "jimp"
 
 function buildNamePattern(token) {
   return token.replace(/[\u2019\u2018']/g, "_")
@@ -1048,25 +1049,37 @@ function hammingDistance(hashA, hashB) {
   return distance
 }
 
-export async function getVisualMatches(imageUrl) {
-  const imghash = (await import("imghash")).default
-  const fs = await import("fs")
-  const path = await import("path")
-  const os = await import("os")
+async function computeScanHash(buffer) {
+  const image = await Jimp.read(buffer)
+  image.resize({ w: 9, h: 8 })
+  image.greyscale()
 
+  let bits = ""
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const left = intToRGBA(image.getPixelColor(x, y)).r
+      const right = intToRGBA(image.getPixelColor(x + 1, y)).r
+      bits += left < right ? "1" : "0"
+    }
+  }
+
+  let hex = ""
+  for (let i = 0; i < bits.length; i += 4) {
+    hex += parseInt(bits.substr(i, 4), 2).toString(16)
+  }
+  return hex
+}
+
+export async function getVisualMatches(imageUrl) {
   const res = await fetch(imageUrl)
   const buffer = Buffer.from(await res.arrayBuffer())
-  const tempPath = path.join(os.tmpdir(), "scan-" + Date.now() + ".jpg")
-  fs.writeFileSync(tempPath, buffer)
 
   let scanHash
   try {
-    scanHash = await imghash.hash(tempPath, 16)
+    scanHash = await computeScanHash(buffer)
   } catch {
-    fs.unlinkSync(tempPath)
     return []
   }
-  fs.unlinkSync(tempPath)
 
   const supabase = await createClient()
   const { data: allHashes } = await supabase
