@@ -1036,8 +1036,18 @@ export async function scanCardImage(base64Data) {
     return { name: null, cardNumber: cardNumber, candidates: [] }
   }
 
+  function isLikelyNonLatin(str) {
+    return !!str && /[^\x00-\x7F]/.test(str)
+  }
+
+  function normalizeNumber(str) {
+    if (!str) return null
+    const match = String(str).match(/(\d+)/)
+    return match ? parseInt(match[1], 10) : null
+  }
+
   let candidates = []
-  if (name) {
+  if (name && !isLikelyNonLatin(name)) {
     const searchQuery = cardNumber ? name + " " + cardNumber : name
     const searchResult = await searchCards(searchQuery, "name", 1, 6)
     candidates = searchResult.results || []
@@ -1051,30 +1061,25 @@ export async function scanCardImage(base64Data) {
     }
   }
 
-  const expectedSetTotal = cardNumberFull && cardNumberFull.includes("/")
-    ? cardNumberFull.split("/")[1]
-    : null
+  const targetNum = normalizeNumber(cardNumber)
+  const nameLower = (name || "").toLowerCase().trim()
+  const visualIds = new Set(visualMatchesResult.map((c) => c.id))
 
-  candidates.sort((a, b) => {
-    const aExactNumber = cardNumber && a.card_number === cardNumber
-    const bExactNumber = cardNumber && b.card_number === cardNumber
-    if (aExactNumber && !bExactNumber) return -1
-    if (bExactNumber && !aExactNumber) return 1
-
-    if (aExactNumber && bExactNumber && expectedSetTotal) {
-      const aExactSet = String(a.set_total) === expectedSetTotal
-      const bExactSet = String(b.set_total) === expectedSetTotal
-      if (aExactSet && !bExactSet) return -1
-      if (bExactSet && !aExactSet) return 1
-    }
-
-    return 0
+  const scored = candidates.map((c) => {
+    let score = 0
+    if (targetNum != null && normalizeNumber(c.card_number) === targetNum) score += 100
+    if (c.name && c.name.toLowerCase().trim() === nameLower) score += 20
+    else if (c.name && nameLower && c.name.toLowerCase().includes(nameLower)) score += 5
+    if (visualIds.has(c.id)) score += 10
+    return { card: c, score }
   })
+
+  scored.sort((a, b) => b.score - a.score)
 
   return {
     name: name,
     cardNumber: cardNumberFull || cardNumber,
-    candidates: candidates,
+    candidates: scored.map((s) => s.card),
   }
 }
 
