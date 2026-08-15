@@ -1002,7 +1002,7 @@ export async function scanCardImage(base64Data) {
     }
   }
 
-  const STAGE_WORDS = { BASIC: true, STAGE: true, EX: true, GX: true, V: true, VMAX: true, VSTAR: true, MEGA: true, TAG: true, TEAM: true }
+  const STAGE_WORDS = { BASIC: true, STAGE: true, EX: true, GX: true, V: true, VMAX: true, VSTAR: true, MEGA: true, TAG: true, TEAM: true, HP: true }
 
   const allY = words.map(function (w) {
     return w.boundingPoly && w.boundingPoly.vertices && w.boundingPoly.vertices[0] ? w.boundingPoly.vertices[0].y || 0 : 0
