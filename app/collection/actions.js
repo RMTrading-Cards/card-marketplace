@@ -945,6 +945,18 @@ export async function refreshSealedData() {
 export async function scanCardImage(imageUrl) {
   const API_KEY = process.env.GOOGLE_VISION_API_KEY
 
+  const imgRes = await fetch(imageUrl)
+  const rawBuffer = Buffer.from(await imgRes.arrayBuffer())
+
+  let normalizedBase64
+  try {
+    const image = await Jimp.read(rawBuffer)
+    const normalizedBuffer = await image.getBuffer("image/jpeg")
+    normalizedBase64 = normalizedBuffer.toString("base64")
+  } catch {
+    normalizedBase64 = rawBuffer.toString("base64")
+  }
+
   const visionRes = await fetch(
     "https://vision.googleapis.com/v1/images:annotate?key=" + API_KEY,
     {
@@ -953,7 +965,7 @@ export async function scanCardImage(imageUrl) {
       body: JSON.stringify({
         requests: [
           {
-            image: { source: { imageUri: imageUrl } },
+            image: { content: normalizedBase64 },
             features: [{ type: "TEXT_DETECTION" }],
           },
         ],
@@ -971,10 +983,12 @@ export async function scanCardImage(imageUrl) {
 
   const numberPattern = /^([A-Z]{0,3}\d+)\/([A-Z]{0,3}\d+)$/
   let cardNumber = null
+  let cardNumberFull = null
   for (let i = 0; i < words.length; i++) {
     const match = words[i].description.match(numberPattern)
     if (match) {
       cardNumber = match[1]
+      cardNumberFull = match[0]
       break
     }
   }
@@ -1031,7 +1045,7 @@ export async function scanCardImage(imageUrl) {
 
   return {
     name: name,
-    cardNumber: cardNumber,
+    cardNumber: cardNumberFull || cardNumber,
     candidates: candidates,
   }
 }
@@ -1089,8 +1103,11 @@ export async function getVisualMatches(imageUrl) {
 
   if (!allHashes || allHashes.length === 0) return []
 
+  const DISTANCE_THRESHOLD = 12
+
   const scored = allHashes
     .map((c) => ({ id: c.id, distance: hammingDistance(scanHash, c.image_phash) }))
+    .filter((c) => c.distance <= DISTANCE_THRESHOLD)
     .sort((a, b) => a.distance - b.distance)
     .slice(0, 10)
 
