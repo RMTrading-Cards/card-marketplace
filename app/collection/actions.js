@@ -942,24 +942,23 @@ export async function refreshSealedData() {
   return json
 }
 
-export async function scanCardImage(imageUrl) {
+export async function scanCardImage(base64Data) {
   const API_KEY = process.env.GOOGLE_VISION_API_KEY
+  const rawBuffer = Buffer.from(base64Data, "base64")
 
-  const imgRes = await fetch(imageUrl)
-  const rawBuffer = Buffer.from(await imgRes.arrayBuffer())
-
+  let normalizedBuffer
   let normalizedBase64
   try {
     const image = await Jimp.read(rawBuffer)
-    const normalizedBuffer = await image.getBuffer("image/jpeg")
+    normalizedBuffer = await image.getBuffer("image/jpeg")
     normalizedBase64 = normalizedBuffer.toString("base64")
   } catch {
-    normalizedBase64 = rawBuffer.toString("base64")
+    normalizedBuffer = rawBuffer
+    normalizedBase64 = base64Data
   }
 
-  const visionRes = await fetch(
-    "https://vision.googleapis.com/v1/images:annotate?key=" + API_KEY,
-    {
+  const [visionResult, visualMatchesResult] = await Promise.all([
+    fetch("https://vision.googleapis.com/v1/images:annotate?key=" + API_KEY, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -970,9 +969,11 @@ export async function scanCardImage(imageUrl) {
           },
         ],
       }),
-    }
-  )
-  const visionData = await visionRes.json()
+    }).then((r) => r.json()),
+    getVisualMatches(normalizedBuffer),
+  ])
+
+  const visionData = visionResult
 
   const annotations = visionData.responses && visionData.responses[0] ? visionData.responses[0].textAnnotations : null
   if (!annotations || annotations.length === 0) {
@@ -1035,8 +1036,7 @@ export async function scanCardImage(imageUrl) {
   }
 
   const seenIds = new Set(candidates.map((c) => c.id))
-  const visualMatches = await getVisualMatches(imageUrl)
-  for (const match of visualMatches) {
+  for (const match of visualMatchesResult) {
     if (!seenIds.has(match.id) && candidates.length < 10) {
       candidates.push(match)
       seenIds.add(match.id)
@@ -1084,10 +1084,7 @@ async function computeScanHash(buffer) {
   return hex
 }
 
-export async function getVisualMatches(imageUrl) {
-  const res = await fetch(imageUrl)
-  const buffer = Buffer.from(await res.arrayBuffer())
-
+export async function getVisualMatches(buffer) {
   let scanHash
   try {
     scanHash = await computeScanHash(buffer)

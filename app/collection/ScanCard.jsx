@@ -1,7 +1,6 @@
 ﻿"use client"
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { scanCardImage, addCardToCollection } from "./actions"
 
 const inputStyle = {
@@ -13,6 +12,42 @@ const inputStyle = {
   padding: "8px 10px",
   fontSize: 16,
   boxSizing: "border-box",
+}
+
+function resizeAndEncode(file) {
+  return new Promise(function (resolve, reject) {
+    const img = new Image()
+    const reader = new FileReader()
+
+    reader.onload = function () {
+      img.onload = function () {
+        const maxDim = 1200
+        let width = img.width
+        let height = img.height
+
+        if (width > height && width > maxDim) {
+          height = Math.round(height * (maxDim / width))
+          width = maxDim
+        } else if (height > maxDim) {
+          width = Math.round(width * (maxDim / height))
+          height = maxDim
+        }
+
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        ctx.drawImage(img, 0, 0, width, height)
+
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85)
+        resolve(dataUrl.split(",")[1])
+      }
+      img.onerror = reject
+      img.src = reader.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 }
 
 function CandidateCard(props) {
@@ -143,17 +178,8 @@ export default function ScanCard(props) {
     setScanning(true)
 
     try {
-      const supabase = createClient()
-      const ext = file.name.split(".").pop()
-      const path = "scans/" + Date.now() + "-" + Math.random().toString(36).slice(2) + "." + ext
-
-      const uploadResult = await supabase.storage.from("card-images").upload(path, file)
-      if (uploadResult.error) throw new Error(uploadResult.error.message)
-
-      const publicUrlResult = supabase.storage.from("card-images").getPublicUrl(path)
-      const imageUrl = publicUrlResult.data.publicUrl
-
-      const result = await scanCardImage(imageUrl)
+      const base64 = await resizeAndEncode(file)
+      const result = await scanCardImage(base64)
       setScanResult(result)
     } catch (err) {
       setError(err.message || "Something went wrong scanning this card")
