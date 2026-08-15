@@ -1078,8 +1078,10 @@ export async function scanCardImage(base64Data) {
 
   const targetNum = normalizeNumber(cardNumber)
   const nameLower = (name || "").toLowerCase().trim()
+  const detectedNonLatin = isLikelyNonLatin(name)
+
   let effectiveVisualMatches = visualMatchesResult
-  if (isLikelyNonLatin(name) && visualMatchesResult.length === 0) {
+  if (detectedNonLatin && visualMatchesResult.length === 0) {
     effectiveVisualMatches = await getVisualMatches(normalizedBuffer, 22)
   }
   const visualIds = new Set(effectiveVisualMatches.map((c) => c.id))
