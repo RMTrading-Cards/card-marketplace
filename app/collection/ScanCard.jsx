@@ -15,7 +15,10 @@ const inputStyle = {
   boxSizing: "border-box",
 }
 
-function CandidateCard({ card, onConfirm, collectionId, onAdded }) {
+function CandidateCard(props) {
+  const card = props.card
+  const collectionId = props.collectionId
+  const onAdded = props.onAdded
   const router = useRouter()
   const [condition, setCondition] = useState("NM")
   const [quantity, setQuantity] = useState(1)
@@ -72,29 +75,29 @@ function CandidateCard({ card, onConfirm, collectionId, onAdded }) {
         </strong>
         <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 8 }}>{card.set_name}</div>
 
-        <select value={variant} onChange={(e) => setVariant(e.target.value)} style={{ ...inputStyle, marginBottom: 6 }}>
-          {variants.map((v) => (
-            <option key={v.key} value={v.key}>{v.key}</option>
-          ))}
+        <select value={variant} onChange={function (e) { setVariant(e.target.value) }} style={{ ...inputStyle, marginBottom: 6 }}>
+          {variants.map(function (v) {
+            return <option key={v.key} value={v.key}>{v.key}</option>
+          })}
         </select>
-        <select value={condition} onChange={(e) => setCondition(e.target.value)} style={{ ...inputStyle, marginBottom: 6 }}>
+        <select value={condition} onChange={function (e) { setCondition(e.target.value) }} style={{ ...inputStyle, marginBottom: 6 }}>
           <option value="NM">Near Mint</option>
           <option value="LP">Lightly Played</option>
           <option value="MP">Moderately Played</option>
           <option value="HP">Heavily Played</option>
           <option value="DMG">Damaged</option>
         </select>
-        <select value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} style={{ ...inputStyle, marginBottom: 6 }}>
-          {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-            <option key={n} value={n}>Qty: {n}</option>
-          ))}
+        <select value={quantity} onChange={function (e) { setQuantity(Number(e.target.value)) }} style={{ ...inputStyle, marginBottom: 6 }}>
+          {Array.from({ length: 10 }, function (_, i) { return i + 1 }).map(function (n) {
+            return <option key={n} value={n}>Qty: {n}</option>
+          })}
         </select>
         <input
           type="number"
           step="0.01"
           placeholder="Your purchase price"
           value={purchasePrice}
-          onChange={(e) => setPurchasePrice(e.target.value)}
+          onChange={function (e) { setPurchasePrice(e.target.value) }}
           style={{ ...inputStyle, marginBottom: 8 }}
         />
 
@@ -121,7 +124,9 @@ function CandidateCard({ card, onConfirm, collectionId, onAdded }) {
   )
 }
 
-export default function ScanCard({ collectionId, onAdded }) {
+export default function ScanCard(props) {
+  const collectionId = props.collectionId
+  const onAdded = props.onAdded
   const [imagePreview, setImagePreview] = useState(null)
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState(null)
@@ -129,7 +134,7 @@ export default function ScanCard({ collectionId, onAdded }) {
   const fileInputRef = useRef(null)
 
   async function handleFileChange(e) {
-    const file = e.target.files?.[0]
+    const file = e.target.files && e.target.files[0]
     if (!file) return
 
     setError("")
@@ -142,11 +147,11 @@ export default function ScanCard({ collectionId, onAdded }) {
       const ext = file.name.split(".").pop()
       const path = "scans/" + Date.now() + "-" + Math.random().toString(36).slice(2) + "." + ext
 
-      const { error: uploadError } = await supabase.storage.from("card-images").upload(path, file)
-      if (uploadError) throw new Error(uploadError.message)
+      const uploadResult = await supabase.storage.from("card-images").upload(path, file)
+      if (uploadResult.error) throw new Error(uploadResult.error.message)
 
-      const { data: publicUrlData } = supabase.storage.from("card-images").getPublicUrl(path)
-      const imageUrl = publicUrlData.publicUrl
+      const publicUrlResult = supabase.storage.from("card-images").getPublicUrl(path)
+      const imageUrl = publicUrlResult.data.publicUrl
 
       const result = await scanCardImage(imageUrl)
       setScanResult(result)
@@ -237,14 +242,16 @@ export default function ScanCard({ collectionId, onAdded }) {
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {scanResult.candidates.map((card) => (
-                <CandidateCard
-                  key={card.id}
-                  card={card}
-                  collectionId={collectionId}
-                  onAdded={handleAdded}
-                />
-              ))}
+              {scanResult.candidates.map(function (card) {
+                return (
+                  <CandidateCard
+                    key={card.id}
+                    card={card}
+                    collectionId={collectionId}
+                    onAdded={handleAdded}
+                  />
+                )
+              })}
             </div>
           )}
         </div>
