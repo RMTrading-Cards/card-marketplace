@@ -950,6 +950,14 @@ export async function scanCardImage(base64Data) {
   let normalizedBase64
   try {
     const image = await Jimp.read(rawBuffer)
+    const maxDim = 1200
+    if (image.bitmap.width > maxDim || image.bitmap.height > maxDim) {
+      if (image.bitmap.width > image.bitmap.height) {
+        image.resize({ w: maxDim })
+      } else {
+        image.resize({ h: maxDim })
+      }
+    }
     normalizedBuffer = await image.getBuffer("image/jpeg")
     normalizedBase64 = normalizedBuffer.toString("base64")
   } catch {
@@ -1042,6 +1050,26 @@ export async function scanCardImage(base64Data) {
       seenIds.add(match.id)
     }
   }
+
+  const expectedSetTotal = cardNumberFull && cardNumberFull.includes("/")
+    ? cardNumberFull.split("/")[1]
+    : null
+
+  candidates.sort((a, b) => {
+    const aExactNumber = cardNumber && a.card_number === cardNumber
+    const bExactNumber = cardNumber && b.card_number === cardNumber
+    if (aExactNumber && !bExactNumber) return -1
+    if (bExactNumber && !aExactNumber) return 1
+
+    if (aExactNumber && bExactNumber && expectedSetTotal) {
+      const aExactSet = String(a.set_total) === expectedSetTotal
+      const bExactSet = String(b.set_total) === expectedSetTotal
+      if (aExactSet && !bExactSet) return -1
+      if (bExactSet && !aExactSet) return 1
+    }
+
+    return 0
+  })
 
   return {
     name: name,
