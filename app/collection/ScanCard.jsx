@@ -14,6 +14,11 @@ const inputStyle = {
   boxSizing: "border-box",
 }
 
+const GRADE_OPTIONS = []
+for (let g = 10; g >= 1; g -= 0.5) {
+  GRADE_OPTIONS.push(g.toFixed(1))
+}
+
 function readAsBase64(file) {
   return new Promise(function (resolve, reject) {
     const reader = new FileReader()
@@ -58,6 +63,7 @@ async function resizeAndEncode(file) {
     return readAsBase64(file)
   }
 }
+
 function CandidateCard(props) {
   const card = props.card
   const collectionId = props.collectionId
@@ -65,8 +71,10 @@ function CandidateCard(props) {
   const router = useRouter()
   const [condition, setCondition] = useState("NM")
   const [quantity, setQuantity] = useState(1)
-  const [purchasePrice, setPurchasePrice] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [isGraded, setIsGraded] = useState(false)
+  const [gradingCompany, setGradingCompany] = useState("PSA")
+  const [gradeValue, setGradeValue] = useState("10.0")
 
   const variants = []
   if (card.price_normal != null) variants.push({ key: "Normal", price: card.price_normal })
@@ -82,7 +90,7 @@ function CandidateCard(props) {
     const formData = new FormData()
     formData.set("card_id", card.id)
     formData.set("variant", variant)
-    formData.set("condition", "NM")
+    formData.set("condition", isGraded ? "NM" : condition)
     formData.set("quantity", quantity)
     formData.set("collection_id", collectionId || "")
     formData.set("is_graded", isGraded ? "yes" : "no")
@@ -127,26 +135,50 @@ function CandidateCard(props) {
             return <option key={v.key} value={v.key}>{v.key}</option>
           })}
         </select>
-        <select value={condition} onChange={function (e) { setCondition(e.target.value) }} style={{ ...inputStyle, marginBottom: 6 }}>
-          <option value="NM">Near Mint</option>
-          <option value="LP">Lightly Played</option>
-          <option value="MP">Moderately Played</option>
-          <option value="HP">Heavily Played</option>
-          <option value="DMG">Damaged</option>
-        </select>
-        <select value={quantity} onChange={function (e) { setQuantity(Number(e.target.value)) }} style={{ ...inputStyle, marginBottom: 6 }}>
+
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>Graded?</div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <label style={{ color: "#ffffff", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
+              <input type="radio" checked={!isGraded} onChange={function () { setIsGraded(false) }} />
+              No
+            </label>
+            <label style={{ color: "#ffffff", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
+              <input type="radio" checked={isGraded} onChange={function () { setIsGraded(true) }} />
+              Yes
+            </label>
+          </div>
+        </div>
+
+        {isGraded ? (
+          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+            <select value={gradingCompany} onChange={function (e) { setGradingCompany(e.target.value) }} style={inputStyle}>
+              <option value="PSA">PSA</option>
+              <option value="BGS">BGS</option>
+              <option value="CGC">CGC</option>
+              <option value="Other">Other</option>
+            </select>
+            <select value={gradeValue} onChange={function (e) { setGradeValue(e.target.value) }} style={inputStyle}>
+              {GRADE_OPTIONS.map(function (g) {
+                return <option key={g} value={g}>{g}</option>
+              })}
+            </select>
+          </div>
+        ) : (
+          <select value={condition} onChange={function (e) { setCondition(e.target.value) }} style={{ ...inputStyle, marginBottom: 6 }}>
+            <option value="NM">Near Mint</option>
+            <option value="LP">Lightly Played</option>
+            <option value="MP">Moderately Played</option>
+            <option value="HP">Heavily Played</option>
+            <option value="DMG">Damaged</option>
+          </select>
+        )}
+
+        <select value={quantity} onChange={function (e) { setQuantity(Number(e.target.value)) }} style={{ ...inputStyle, marginBottom: 8 }}>
           {Array.from({ length: 10 }, function (_, i) { return i + 1 }).map(function (n) {
             return <option key={n} value={n}>Qty: {n}</option>
           })}
         </select>
-        <input
-          type="number"
-          step="0.01"
-          placeholder="Your purchase price"
-          value={purchasePrice}
-          onChange={function (e) { setPurchasePrice(e.target.value) }}
-          style={{ ...inputStyle, marginBottom: 8 }}
-        />
 
         <button
           onClick={handleAdd}
@@ -275,7 +307,7 @@ export default function ScanCard(props) {
           </p>
           {scanResult.detectedNonLatin && (
             <p style={{ color: "#F2B705", fontSize: 12, marginBottom: 12 }}>
-              Detected non-English text — card names in our database are stored in English, so matching relies on visual similarity only for this scan.
+              Detected non-English text - card names in our database are stored in English, so matching relies on visual similarity only for this scan.
             </p>
           )}
 
