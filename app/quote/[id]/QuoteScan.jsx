@@ -2,9 +2,9 @@
 import { useEffect, useRef, useState } from "react"
 import { quickScanCard, addItemToQuote, getQuoteItems, removeQuoteItem, incrementQuoteItemQuantity } from "../../collection/actions"
 
-const STABILITY_CHECK_MS = 150
+const STABILITY_CHECK_MS = 100
 const STABLE_FRAMES_REQUIRED = 2
-const DIFF_THRESHOLD = 20
+const DIFF_THRESHOLD = 22
 const SMALL_W = 48
 const SMALL_H = 32
 
