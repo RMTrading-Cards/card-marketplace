@@ -1360,3 +1360,119 @@ export async function incrementQuoteItemQuantity(itemId, newQuantity) {
     .eq("id", itemId)
   if (error) throw new Error(error.message)
 }
+
+export async function quickScanCard(base64Data) {
+  const API_KEY = process.env.GOOGLE_VISION_API_KEY
+
+  const visionRes = await fetch(
+    "https://vision.googleapis.com/v1/images:annotate?key=" + API_KEY,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [
+          {
+            image: { content: base64Data },
+            features: [{ type: "TEXT_DETECTION" }],
+          },
+        ],
+      }),
+    }
+  )
+  const visionData = await visionRes.json()
+
+  const annotations = visionData.responses && visionData.responses[0] ? visionData.responses[0].textAnnotations : null
+  if (!annotations || annotations.length === 0) {
+    return { success: false, reason: "no_text" }
+  }
+
+  const words = annotations.slice(1)
+  const fullText = annotations[0] ? annotations[0].description : ""
+
+  const numberPattern = /^([A-Z]{0,3}\d+)\/([A-Z]{0,3}\d+)$/
+  let cardNumber = null
+  let cardNumberFull = null
+  for (let i = 0; i < words.length; i++) {
+    const match = words[i].description.match(numberPattern)
+    if (match) {
+      cardNumber = match[1]
+      cardNumberFull = match[0]
+      break
+    }
+  }
+  if (!cardNumberFull) {
+    const looseMatch = fullText.match(/([A-Z]{0,3}\d+)\s*\/\s*([A-Z]{0,3}\d+)/)
+    if (looseMatch) {
+      cardNumber = looseMatch[1]
+      cardNumberFull = looseMatch[1] + "/" + looseMatch[2]
+    }
+  }
+
+  const STAGE_WORDS = { BASIC: true, STAGE: true, HP: true, "たね": true }
+
+  const allY = words.map(function (w) {
+    return w.boundingPoly && w.boundingPoly.vertices && w.boundingPoly.vertices[0] ? w.boundingPoly.vertices[0].y || 0 : 0
+  })
+  const minY = Math.min.apply(null, allY)
+  const maxY = Math.max.apply(null, allY)
+  const topThird = minY + (maxY - minY) * 0.35
+
+  const nameBandCandidates = []
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i]
+    const verts = (word.boundingPoly && word.boundingPoly.vertices) || []
+    const y = verts[0] ? (verts[0].y || Infinity) : Infinity
+    if (y > topThird) continue
+    if (word.description.length < 2) continue
+    if (STAGE_WORDS[word.description.toUpperCase()]) continue
+    if (/\d/.test(word.description)) continue
+
+    const ys = verts.map(function (v) { return v.y || 0 })
+    const height = Math.max.apply(null, ys) - Math.min.apply(null, ys)
+    const x = verts[0] ? (verts[0].x || 0) : 0
+    nameBandCandidates.push({ word: word.description, y: y, x: x, height: height })
+  }
+
+  let bestWord = null
+  let bestHeight = 0
+  for (const c of nameBandCandidates) {
+    if (c.height > bestHeight) {
+      bestHeight = c.height
+      bestWord = c
+    }
+  }
+
+  let name = bestWord ? bestWord.word : null
+  if (bestWord) {
+    const lineTolerance = bestWord.height * 0.7
+    const sameLineWords = nameBandCandidates
+      .filter(function (c) { return Math.abs(c.y - bestWord.y) <= lineTolerance })
+      .sort(function (a, b) { return a.x - b.x })
+    if (sameLineWords.length > 1) {
+      name = sameLineWords.map(function (c) { return c.word }).join(" ")
+    }
+  }
+
+  if (!name || !cardNumber) {
+    return { success: false, reason: "incomplete" }
+  }
+
+  function normalizeNumber(str) {
+    const match = String(str || "").match(/(\d+)/)
+    return match ? parseInt(match[1], 10) : null
+  }
+  const targetNum = normalizeNumber(cardNumber)
+
+  const searchResult = await searchCards(name + " " + cardNumber, "name", 1, 5)
+  const results = searchResult.results || []
+
+  const exactMatch = results.find(function (c) {
+    return normalizeNumber(c.card_number) === targetNum
+  })
+
+  if (!exactMatch) {
+    return { success: false, reason: "no_confident_match" }
+  }
+
+  return { success: true, card: exactMatch, name: name, cardNumber: cardNumberFull }
+}

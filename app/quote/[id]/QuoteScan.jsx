@@ -1,13 +1,7 @@
 ﻿"use client"
 
 import { useEffect, useRef, useState } from "react"
-import {
-  scanCardImage,
-  addItemToQuote,
-  getQuoteItems,
-  removeQuoteItem,
-  incrementQuoteItemQuantity
-} from "../../collection/actions"
+import { quickScanCard, addItemToQuote, getQuoteItems, removeQuoteItem, incrementQuoteItemQuantity } from "../../collection/actions"
 
 function getFirstVariant(card) {
   if (card.price_normal != null) return "Normal"
@@ -95,7 +89,7 @@ export default function QuoteScan({ quoteId }) {
 
     const interval = setInterval(function () {
       runScanTick()
-    }, 1000)
+    }, 500)
 
     return function () {
       clearInterval(interval)
@@ -122,21 +116,19 @@ export default function QuoteScan({ quoteId }) {
     }
 
     busyRef.current = true
-
     try {
       const base64 = captureFrameAsBase64(video, canvas)
+      const result = await quickScanCard(base64)
 
-      const result = await scanCardImage(base64)
-
-      const top = result.candidates && result.candidates[0]
-
-      if (!top) {
+      if (!result.success) {
         lastKeyRef.current = null
+        setToast("Make sure the card is flat, in focus, with the number visible in the bottom corner")
+        setTimeout(function () { setToast("") }, 1200)
         return
       }
 
+      const top = result.card
       const variant = getFirstVariant(top)
-
       const currentKey = top.id + "|" + variant
 
       if (currentKey === lastKeyRef.current) {
