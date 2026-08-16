@@ -1259,17 +1259,15 @@ export async function quickScanCard(base64Data) {
     }
   }
 
-  let isPromo = false
-  let promoCode = null
   if (!cardNumberFull) {
-    const allYForPromo = words.map(function (w) {
+    const allYForBare = words.map(function (w) {
       return w.boundingPoly && w.boundingPoly.vertices && w.boundingPoly.vertices[0] ? w.boundingPoly.vertices[0].y || 0 : 0
     })
-    const minYForPromo = Math.min.apply(null, allYForPromo)
-    const maxYForPromo = Math.max.apply(null, allYForPromo)
-    const bottomQuarter = minYForPromo + (maxYForPromo - minYForPromo) * 0.75
+    const minYForBare = Math.min.apply(null, allYForBare)
+    const maxYForBare = Math.max.apply(null, allYForBare)
+    const bottomQuarter = minYForBare + (maxYForBare - minYForBare) * 0.75
 
-    const promoPattern = /^[A-Z]{0,5}\d{1,4}$/
+    const barePattern = /^[A-Z]{0,3}\d{1,4}$/
     for (let i = 0; i < words.length; i++) {
       const word = words[i]
       const verts = (word.boundingPoly && word.boundingPoly.vertices) || []
@@ -1278,9 +1276,8 @@ export async function quickScanCard(base64Data) {
 
       const text = word.description.toUpperCase()
       if (text === "PROMO" || text === "EN" || text === "JP" || text === "HP") continue
-      if (promoPattern.test(text) && /\d/.test(text)) {
-        promoCode = text
-        isPromo = true
+      if (barePattern.test(text) && /\d/.test(text)) {
+        cardNumber = text
         break
       }
     }
@@ -1331,25 +1328,17 @@ export async function quickScanCard(base64Data) {
     }
   }
 
-  if (!name) {
-    return { success: false, reason: "incomplete" }
-  }
-  if (!isPromo && (!cardNumberFull || !cardNumberFull.includes("/"))) {
-    return { success: false, reason: "incomplete" }
-  }
-  if (isPromo && !promoCode) {
+  if (!name || !cardNumber) {
     return { success: false, reason: "incomplete" }
   }
 
-  let targetNum = null
+  const targetNum = normalizeCardNumber(cardNumber)
   let targetTotal = null
-  if (!isPromo) {
-    const numParts = cardNumberFull.split("/")
-    targetNum = normalizeCardNumber(numParts[0])
-    targetTotal = normalizeCardNumber(numParts[1])
-    if (targetNum == null || targetTotal == null) {
-      return { success: false, reason: "incomplete" }
-    }
+  if (cardNumberFull && cardNumberFull.includes("/")) {
+    targetTotal = normalizeCardNumber(cardNumberFull.split("/")[1])
+  }
+  if (targetNum == null) {
+    return { success: false, reason: "incomplete" }
   }
 
   const nameLower = name.toLowerCase().trim()
@@ -1359,36 +1348,20 @@ export async function quickScanCard(base64Data) {
     return cLower === nameLower || cLower.indexOf(nameLower) === 0 || nameLower.indexOf(cLower) === 0
   }
 
-  if (isPromo) {
-    const promoSearchResult = await searchCards(name + " " + promoCode, "name", 1, 8)
-    const promoResults = promoSearchResult.results || []
-    const promoCodeLower = promoCode.toLowerCase()
-
-    const promoMatch = promoResults.find(function (c) {
-      const storedNumber = (c.card_number || "").toLowerCase().replace(/\s+/g, "")
-      return storedNumber === promoCodeLower && nameMatches(c.name)
-    })
-
-    if (promoMatch) {
-      return { success: true, card: promoMatch, name: name, cardNumber: promoCode }
-    }
-
-    return { success: false, reason: "no_confident_match" }
-  }
-
   const searchResult = await searchCards(name + " " + cardNumber, "name", 1, 8)
   const results = searchResult.results || []
 
-  const fullMatch = results.find(function (c) {
-    return (
-      normalizeCardNumber(c.card_number) === targetNum &&
-      normalizeCardNumber(c.set_total) === targetTotal &&
-      nameMatches(c.name)
-    )
-  })
-
-  if (fullMatch) {
-    return { success: true, card: fullMatch, name: name, cardNumber: cardNumberFull }
+  if (targetTotal != null) {
+    const fullMatch = results.find(function (c) {
+      return (
+        normalizeCardNumber(c.card_number) === targetNum &&
+        normalizeCardNumber(c.set_total) === targetTotal &&
+        nameMatches(c.name)
+      )
+    })
+    if (fullMatch) {
+      return { success: true, card: fullMatch, name: name, cardNumber: cardNumberFull }
+    }
   }
 
   const numberOnlyMatch = results.find(function (c) {
@@ -1396,7 +1369,7 @@ export async function quickScanCard(base64Data) {
   })
 
   if (numberOnlyMatch) {
-    return { success: true, card: numberOnlyMatch, name: name, cardNumber: cardNumberFull }
+    return { success: true, card: numberOnlyMatch, name: name, cardNumber: cardNumberFull || cardNumber }
   }
 
   return { success: false, reason: "no_confident_match" }
