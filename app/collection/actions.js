@@ -1261,14 +1261,26 @@ export async function quickScanCard(base64Data) {
 
   let isPromo = false
   let promoCode = null
-  if (!cardNumberFull && /PROMO/i.test(fullText)) {
-    isPromo = true
+  if (!cardNumberFull) {
+    const allYForPromo = words.map(function (w) {
+      return w.boundingPoly && w.boundingPoly.vertices && w.boundingPoly.vertices[0] ? w.boundingPoly.vertices[0].y || 0 : 0
+    })
+    const minYForPromo = Math.min.apply(null, allYForPromo)
+    const maxYForPromo = Math.max.apply(null, allYForPromo)
+    const bottomQuarter = minYForPromo + (maxYForPromo - minYForPromo) * 0.75
+
     const promoPattern = /^[A-Z]{0,5}\d{1,4}$/
     for (let i = 0; i < words.length; i++) {
-      const text = words[i].description.toUpperCase()
-      if (text === "PROMO") continue
+      const word = words[i]
+      const verts = (word.boundingPoly && word.boundingPoly.vertices) || []
+      const y = verts[0] ? (verts[0].y || 0) : 0
+      if (y < bottomQuarter) continue
+
+      const text = word.description.toUpperCase()
+      if (text === "PROMO" || text === "EN" || text === "JP" || text === "HP") continue
       if (promoPattern.test(text) && /\d/.test(text)) {
         promoCode = text
+        isPromo = true
         break
       }
     }
