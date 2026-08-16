@@ -1351,3 +1351,12 @@ export async function importQuoteAsCollection(quoteId, collectionName, items) {
   revalidatePath("/collection")
   return newCollection.id
 }
+
+export async function incrementQuoteItemQuantity(itemId, newQuantity) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from("quote_items")
+    .update({ quantity: newQuantity })
+    .eq("id", itemId)
+  if (error) throw new Error(error.message)
+}
