@@ -1472,13 +1472,21 @@ export async function quickScanCard(base64Data) {
   const searchResult = await searchCards(name + " " + cardNumber, "name", 1, 8)
   const results = searchResult.results || []
 
-  const exactMatch = results.find(function (c) {
+  const fullMatch = results.find(function (c) {
     return normalizeNumber(c.card_number) === targetNum && normalizeNumber(c.set_total) === targetTotal
   })
 
-  if (!exactMatch) {
-    return { success: false, reason: "no_confident_match" }
+  if (fullMatch) {
+    return { success: true, card: fullMatch, name: name, cardNumber: cardNumberFull }
   }
 
-  return { success: true, card: exactMatch, name: name, cardNumber: cardNumberFull }
+  const numberOnlyMatch = results.find(function (c) {
+    return normalizeNumber(c.card_number) === targetNum
+  })
+
+  if (numberOnlyMatch) {
+    return { success: true, card: numberOnlyMatch, name: name, cardNumber: cardNumberFull }
+  }
+
+  return { success: false, reason: "no_confident_match" }
 }
