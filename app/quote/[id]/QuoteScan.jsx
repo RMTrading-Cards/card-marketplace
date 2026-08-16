@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react"
 import { quickScanCard, addItemToQuote, getQuoteItems, removeQuoteItem, incrementQuoteItemQuantity } from "../../collection/actions"
 
 const STABILITY_CHECK_MS = 150
-const STABLE_FRAMES_REQUIRED = 3
-const DIFF_THRESHOLD = 8
+const STABLE_FRAMES_REQUIRED = 2
+const DIFF_THRESHOLD = 20
 const SMALL_W = 48
 const SMALL_H = 32
 
@@ -241,12 +241,26 @@ export default function QuoteScan({ quoteId }) {
           </div>
         )}
 
-        <button
-          onClick={function () { setAutoScanning(!autoScanning) }}
-          style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 6, padding: "8px 16px", fontSize: 13, cursor: "pointer", marginBottom: 20 }}
-        >
-          {autoScanning ? "Pause Scanning" : "Resume Scanning"}
-        </button>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          <button
+            onClick={function () { setAutoScanning(!autoScanning) }}
+            style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 6, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}
+          >
+            {autoScanning ? "Pause Scanning" : "Resume Scanning"}
+          </button>
+          <button
+            onClick={function () {
+              if (!busyRef.current) {
+                readyToScanRef.current = false
+                setStabilityHint("Reading...")
+                runScan()
+              }
+            }}
+            style={{ backgroundColor: "#F2B705", border: "none", color: "#000", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
+            Scan Now
+          </button>
+        </div>
 
         <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 16, marginBottom: 20 }}>
           <h2 style={{ color: "#ffffff", fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
