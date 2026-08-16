@@ -2,6 +2,12 @@
 import { useEffect, useRef, useState } from "react"
 import { quickScanCard, addItemToQuote, getQuoteItems, removeQuoteItem, incrementQuoteItemQuantity } from "../../collection/actions"
 
+const STABILITY_CHECK_MS = 150
+const STABLE_FRAMES_REQUIRED = 3
+const DIFF_THRESHOLD = 8
+const SMALL_W = 48
+const SMALL_H = 32
+
 function getFirstVariant(card) {
   if (card.price_normal != null) return "Normal"
   if (card.price_holofoil != null) return "Holofoil"
@@ -29,14 +35,44 @@ function captureFrameAsBase64(video, canvas) {
   return dataUrl.split(",")[1]
 }
 
+function getSmallGrayscale(video, smallCanvas) {
+  smallCanvas.width = SMALL_W
+  smallCanvas.height = SMALL_H
+  const ctx = smallCanvas.getContext("2d")
+  ctx.drawImage(video, 0, 0, SMALL_W, SMALL_H)
+  const imageData = ctx.getImageData(0, 0, SMALL_W, SMALL_H)
+  const data = imageData.data
+  const gray = new Uint8Array(SMALL_W * SMALL_H)
+  for (let i = 0; i < gray.length; i++) {
+    const offset = i * 4
+    gray[i] = (data[offset] + data[offset + 1] + data[offset + 2]) / 3
+  }
+  return gray
+}
+
+function averageDiff(a, b) {
+  if (!a || !b || a.length !== b.length) return 999
+  let sum = 0
+  for (let i = 0; i < a.length; i++) {
+    sum += Math.abs(a[i] - b[i])
+  }
+  return sum / a.length
+}
+
 export default function QuoteScan({ quoteId }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
+  const smallCanvasRef = useRef(null)
   const lastKeyRef = useRef(null)
   const busyRef = useRef(false)
 
+  const prevGrayRef = useRef(null)
+  const stableCountRef = useRef(0)
+  const readyToScanRef = useRef(true)
+
   const [cameraError, setCameraError] = useState("")
   const [autoScanning, setAutoScanning] = useState(true)
+  const [stabilityHint, setStabilityHint] = useState("Point at a card")
   const [addedItems, setAddedItems] = useState([])
   const [toast, setToast] = useState("")
   const [showQr, setShowQr] = useState(false)
@@ -70,8 +106,8 @@ export default function QuoteScan({ quoteId }) {
   useEffect(() => {
     if (!autoScanning) return
     const interval = setInterval(function () {
-      runScanTick()
-    }, 500)
+      checkStabilityTick()
+    }, STABILITY_CHECK_MS)
     return function () { clearInterval(interval) }
   }, [autoScanning, addedItems])
 
@@ -80,11 +116,35 @@ export default function QuoteScan({ quoteId }) {
     setAddedItems(items)
   }
 
-  async function runScanTick() {
+  function checkStabilityTick() {
     if (busyRef.current) return
     const video = videoRef.current
+    const smallCanvas = smallCanvasRef.current
+    if (!video || !smallCanvas || video.readyState !== video.HAVE_ENOUGH_DATA) return
+
+    const currentGray = getSmallGrayscale(video, smallCanvas)
+    const diff = averageDiff(prevGrayRef.current, currentGray)
+    prevGrayRef.current = currentGray
+
+    if (diff < DIFF_THRESHOLD) {
+      stableCountRef.current += 1
+    } else {
+      stableCountRef.current = 0
+      readyToScanRef.current = true
+      setStabilityHint("Hold the card steady...")
+    }
+
+    if (stableCountRef.current >= STABLE_FRAMES_REQUIRED && readyToScanRef.current) {
+      readyToScanRef.current = false
+      setStabilityHint("Reading...")
+      runScan()
+    }
+  }
+
+  async function runScan() {
+    const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) return
+    if (!video || !canvas) return
 
     busyRef.current = true
     try {
@@ -92,6 +152,7 @@ export default function QuoteScan({ quoteId }) {
       const result = await quickScanCard(base64)
 
       if (!result.success) {
+        setStabilityHint("Couldn't read it clearly - try repositioning")
         setToast("Make sure the card is flat, in focus, with the number visible in the bottom corner")
         setTimeout(function () { setToast("") }, 1200)
         return
@@ -102,6 +163,7 @@ export default function QuoteScan({ quoteId }) {
       const currentKey = top.id + "|" + variant
 
       if (currentKey === lastKeyRef.current) {
+        setStabilityHint("Move to the next card")
         return
       }
       lastKeyRef.current = currentKey
@@ -126,10 +188,11 @@ export default function QuoteScan({ quoteId }) {
         setToast("Added: " + top.name)
       }
 
+      setStabilityHint("Move to the next card")
       await refreshItems()
       setTimeout(function () { setToast("") }, 2000)
     } catch (err) {
-      // Silently ignore a single failed tick — the next scan will just try again.
+      setStabilityHint("Point at a card")
     } finally {
       busyRef.current = false
     }
@@ -154,8 +217,8 @@ export default function QuoteScan({ quoteId }) {
         <h1 style={{ color: "#ffffff", fontSize: 24, fontWeight: 900, marginBottom: 4 }}>
           <span style={{ color: "#F2B705" }}>RMT</span>rading Cards - Get a Quote
         </h1>
-        <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 20 }}>
-          Hold each card flat in front of the camera. It's added automatically - just move to the next card when you're ready.
+        <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 8 }}>
+          Hold each card flat and steady, filling most of the frame. It's added automatically once it holds still.
         </p>
 
         {cameraError ? (
@@ -164,6 +227,12 @@ export default function QuoteScan({ quoteId }) {
           <div style={{ position: "relative", marginBottom: 8 }}>
             <video ref={videoRef} style={{ width: "100%", borderRadius: 10, border: "2px solid #F2B705" }} muted playsInline />
             <canvas ref={canvasRef} style={{ display: "none" }} />
+            <canvas ref={smallCanvasRef} style={{ display: "none" }} />
+
+            <div style={{ position: "absolute", top: 10, left: 10, right: 10, backgroundColor: "rgba(0,0,0,0.7)", color: "#F2B705", padding: "6px 10px", borderRadius: 8, fontSize: 13, fontWeight: 600, textAlign: "center" }}>
+              {stabilityHint}
+            </div>
+
             {toast && (
               <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, backgroundColor: "rgba(0,0,0,0.8)", color: "#F2B705", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontWeight: 600, textAlign: "center" }}>
                 {toast}
