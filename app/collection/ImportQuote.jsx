@@ -177,7 +177,7 @@ export default function ImportQuote(props) {
       }
     })
     setItems(editable)
-    setCollectionName("Quote " + new Date().toLocaleDateString())
+    setCollectionName("Quote " + new Date().toLocaleDateString() + " #" + id.slice(-4).toUpperCase())
     setPhase("review")
   }
 

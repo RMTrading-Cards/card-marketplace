@@ -104,12 +104,6 @@ export default function Login() {
             </button>
           </form>
 
-          <p style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', marginTop: 16 }}>
-            Don't have an account?{' '}
-            <a href="/signup" style={{ color: '#F2B705', textDecoration: 'none' }}>
-              Sign up
-            </a>
-          </p>
           <div style={{ borderTop: '1px solid #2a2a2a', marginTop: 20, paddingTop: 16, textAlign: 'center' }}>
             <p style={{ color: '#9ca3af', fontSize: 12, marginBottom: 10 }}>
               Selling cards to us? Get a quote without an account.
