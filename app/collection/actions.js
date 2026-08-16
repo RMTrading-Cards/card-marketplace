@@ -1278,7 +1278,7 @@ export async function getQuoteItems(quoteId) {
       "id, variant, condition, is_graded, grade_value, quantity, created_at, cards(id, name, set_name, card_number, set_total, rarity, image_small, region, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus)"
     )
     .eq("quote_session_id", quoteId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
   return data || []
 }
 
@@ -1472,8 +1472,19 @@ export async function quickScanCard(base64Data) {
   const searchResult = await searchCards(name + " " + cardNumber, "name", 1, 8)
   const results = searchResult.results || []
 
+  const nameLower = name.toLowerCase().trim()
+  function nameMatches(candidateName) {
+    if (!candidateName) return false
+    const cLower = candidateName.toLowerCase().trim()
+    return cLower === nameLower || cLower.indexOf(nameLower) === 0 || nameLower.indexOf(cLower) === 0
+  }
+
   const fullMatch = results.find(function (c) {
-    return normalizeNumber(c.card_number) === targetNum && normalizeNumber(c.set_total) === targetTotal
+    return (
+      normalizeNumber(c.card_number) === targetNum &&
+      normalizeNumber(c.set_total) === targetTotal &&
+      nameMatches(c.name)
+    )
   })
 
   if (fullMatch) {
@@ -1481,7 +1492,7 @@ export async function quickScanCard(base64Data) {
   }
 
   const numberOnlyMatch = results.find(function (c) {
-    return normalizeNumber(c.card_number) === targetNum
+    return normalizeNumber(c.card_number) === targetNum && nameMatches(c.name)
   })
 
   if (numberOnlyMatch) {
