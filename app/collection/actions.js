@@ -1,4 +1,4 @@
-"use server"
+﻿"use server"
 import { createClient } from "@/lib/supabase/server"
 import { createPublicClient } from "@/lib/supabase/public"
 import { revalidatePath, unstable_cache } from "next/cache"
@@ -628,6 +628,8 @@ export async function sellCardItem(formData) {
       created_at: current.created_at,
       sold_price: soldPrice,
       sold_at: new Date().toISOString(),
+      is_graded: current.is_graded,
+      grade_value: current.grade_value,
     })
     if (insertError) throw new Error(insertError.message)
 
@@ -791,6 +793,20 @@ export async function addManualCard(formData) {
   revalidatePath("/collection")
 }
 
+export const getManualAddOptions = unstable_cache(
+  async () => {
+    const supabase = createPublicClient()
+    const { data: setRows } = await supabase.from("distinct_set_names").select("set_name")
+    const { data: rarityRows } = await supabase.from("distinct_rarities").select("rarity")
+    return {
+      setNames: (setRows || []).map((r) => r.set_name),
+      rarities: (rarityRows || []).map((r) => r.rarity),
+    }
+  },
+  ["manual-add-options"],
+  { revalidate: 3600 }
+)
+
 const getKnownSetAbbrs = unstable_cache(
   async () => {
     const supabase = createPublicClient()
@@ -806,20 +822,6 @@ const getKnownSetAbbrs = unstable_cache(
     return unique
   },
   ["known-set-abbrs"],
-  { revalidate: 3600 }
-)
-
-export const getManualAddOptions = unstable_cache(
-  async () => {
-    const supabase = createPublicClient()
-    const { data: setRows } = await supabase.from("distinct_set_names").select("set_name")
-    const { data: rarityRows } = await supabase.from("distinct_rarities").select("rarity")
-    return {
-      setNames: (setRows || []).map((r) => r.set_name),
-      rarities: (rarityRows || []).map((r) => r.rarity),
-    }
-  },
-  ["manual-add-options"],
   { revalidate: 3600 }
 )
 
@@ -880,63 +882,28 @@ export async function getSyncStatus() {
   }
 }
 
-const HISTORY_VARIANT_ORDER = [
-  "Holofoil",
-  "Normal",
-  "Reverse Holofoil",
-  "1st Edition Holofoil",
-  "Standard",
-]
-
 export async function getCardPriceHistory(cardId, variant, range) {
   const supabase = await createClient()
-  if (!cardId) return []
+  const now = new Date()
+  const fromDate = new Date(now)
 
-  const fromDate = new Date()
   if (range === "week") fromDate.setDate(fromDate.getDate() - 7)
   else if (range === "month") fromDate.setMonth(fromDate.getMonth() - 1)
   else fromDate.setFullYear(fromDate.getFullYear() - 1)
-  const cutoff = fromDate.toISOString().slice(0, 10)
 
-  async function rowsFor(v) {
-    const { data, error } = await supabase
-      .from("card_price_history")
-      .select("price, recorded_at")
-      .eq("card_id", cardId)
-      .eq("variant", v)
-      .gte("recorded_at", cutoff)
-      .order("recorded_at", { ascending: true })
-    if (error) {
-      console.error("[getCardPriceHistory]", v, error.message)
-      return null
-    }
-    return data || []
+  const { data, error } = await supabase
+    .from("card_price_history")
+    .select("price, recorded_at")
+    .eq("card_id", cardId)
+    .eq("variant", variant)
+    .gte("recorded_at", fromDate.toISOString().slice(0, 10))
+    .order("recorded_at", { ascending: true })
+
+  if (error) {
+    console.error(error)
+    return []
   }
-
-  let rows = variant ? await rowsFor(variant) : []
-
-  if (!rows || rows.length === 0) {
-    const { data: avail } = await supabase
-      .from("card_price_history")
-      .select("variant")
-      .eq("card_id", cardId)
-      .gte("recorded_at", cutoff)
-
-    const present = new Set((avail || []).map((r) => r.variant))
-    const pick =
-      HISTORY_VARIANT_ORDER.find((v) => present.has(v)) || Array.from(present)[0]
-
-    console.log("[getCardPriceHistory] fallback", {
-      cardId,
-      requested: variant,
-      available: Array.from(present),
-      picked: pick,
-    })
-
-    if (pick) rows = await rowsFor(pick)
-  }
-
-  return rows || []
+  return data || []
 }
 
 export async function refreshCardsData() {
@@ -967,193 +934,6 @@ export async function refreshSealedData() {
   const json = await res.json()
   revalidatePath("/collection")
   return json
-}
-
-export async function scanCardImage(base64Data) {
-  const API_KEY = process.env.GOOGLE_VISION_API_KEY
-  const rawBuffer = Buffer.from(base64Data, "base64")
-
-  let normalizedBuffer
-  let normalizedBase64
-  try {
-    const image = await Jimp.read(rawBuffer)
-    const maxDim = 1200
-    if (image.bitmap.width > maxDim || image.bitmap.height > maxDim) {
-      if (image.bitmap.width > image.bitmap.height) {
-        image.resize({ w: maxDim })
-      } else {
-        image.resize({ h: maxDim })
-      }
-    }
-    normalizedBuffer = await image.getBuffer("image/jpeg")
-    normalizedBase64 = normalizedBuffer.toString("base64")
-  } catch {
-    normalizedBuffer = rawBuffer
-    normalizedBase64 = base64Data
-  }
-
-  const [visionResult, visualMatchesResult] = await Promise.all([
-    fetch("https://vision.googleapis.com/v1/images:annotate?key=" + API_KEY, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        requests: [
-          {
-            image: { content: normalizedBase64 },
-            features: [{ type: "TEXT_DETECTION" }],
-          },
-        ],
-      }),
-    }).then((r) => r.json()),
-    getVisualMatches(normalizedBuffer),
-  ])
-
-  const visionData = visionResult
-
-  const annotations = visionData.responses && visionData.responses[0] ? visionData.responses[0].textAnnotations : null
-  if (!annotations || annotations.length === 0) {
-    return { name: null, cardNumber: null, candidates: [] }
-  }
-
-  const words = annotations.slice(1)
-
-  const numberPattern = /^([A-Z]{0,3}\d+)\/([A-Z]{0,3}\d+)$/
-  let cardNumber = null
-  let cardNumberFull = null
-  for (let i = 0; i < words.length; i++) {
-    const match = words[i].description.match(numberPattern)
-    if (match) {
-      cardNumber = match[1]
-      cardNumberFull = match[0]
-      break
-    }
-  }
-
-  const STAGE_WORDS = { BASIC: true, STAGE: true, "たね": true, HP: true }
-
-  const allY = words.map(function (w) {
-    return w.boundingPoly && w.boundingPoly.vertices && w.boundingPoly.vertices[0] ? w.boundingPoly.vertices[0].y || 0 : 0
-  })
-  const minY = Math.min.apply(null, allY)
-  const maxY = Math.max.apply(null, allY)
-  const topThird = minY + (maxY - minY) * 0.35
-
-  const nameBandCandidates = []
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i]
-    const verts = (word.boundingPoly && word.boundingPoly.vertices) || []
-    const y = verts[0] ? (verts[0].y || Infinity) : Infinity
-    if (y > topThird) continue
-    if (word.description.length < 2) continue
-    if (STAGE_WORDS[word.description.toUpperCase()]) continue
-    if (/\d/.test(word.description)) continue
-
-    const ys = verts.map(function (v) { return v.y || 0 })
-    const height = Math.max.apply(null, ys) - Math.min.apply(null, ys)
-    const x = verts[0] ? (verts[0].x || 0) : 0
-    nameBandCandidates.push({ word: word.description, y: y, x: x, height: height })
-  }
-
-  let bestWord = null
-  let bestHeight = 0
-  for (const c of nameBandCandidates) {
-    if (c.height > bestHeight) {
-      bestHeight = c.height
-      bestWord = c
-    }
-  }
-
-  let name = bestWord ? bestWord.word : null
-  if (bestWord) {
-    const lineTolerance = bestWord.height * 0.7
-    const sameLineWords = nameBandCandidates
-      .filter(function (c) { return Math.abs(c.y - bestWord.y) <= lineTolerance })
-      .sort(function (a, b) { return a.x - b.x })
-    if (sameLineWords.length > 1) {
-      name = sameLineWords.map(function (c) { return c.word }).join(" ")
-    }
-  }
-
-  if (!name) {
-    return { name: null, cardNumber: cardNumber, candidates: [] }
-  }
-
-  function isLikelyNonLatin(str) {
-    return !!str && /[^\x00-\x7F]/.test(str)
-  }
-
-  function normalizeNumber(str) {
-    if (!str) return null
-    const match = String(str).match(/(\d+)/)
-    return match ? parseInt(match[1], 10) : null
-  }
-
-  let candidates = []
-  if (name && !isLikelyNonLatin(name)) {
-    const searchQuery = cardNumber ? name + " " + cardNumber : name
-    const searchResult = await searchCards(searchQuery, "name", 1, 6)
-    candidates = searchResult.results || []
-  }
-
-  const seenIds = new Set(candidates.map((c) => c.id))
-  for (const match of visualMatchesResult) {
-    if (!seenIds.has(match.id) && candidates.length < 10) {
-      candidates.push(match)
-      seenIds.add(match.id)
-    }
-  }
-
-  const targetNum = normalizeNumber(cardNumber)
-  const nameLower = (name || "").toLowerCase().trim()
-
-  const bottomThird = maxY - (maxY - minY) * 0.25
-  const knownAbbrs = await getKnownSetAbbrs()
-  let detectedSetAbbr = null
-
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i]
-    const verts = (word.boundingPoly && word.boundingPoly.vertices) || []
-    const y = verts[0] ? (verts[0].y || 0) : 0
-    if (y < bottomThird) continue
-
-    const text = word.description.toUpperCase()
-    if (text.length < 2 || text.length > 5) continue
-    if (!/^[A-Z0-9]+$/.test(text)) continue
-    if (text === "EN" || text === "JP") continue
-
-    if (knownAbbrs[text]) {
-      detectedSetAbbr = text
-      break
-    }
-  }
-  const detectedNonLatin = isLikelyNonLatin(name)
-
-  let effectiveVisualMatches = visualMatchesResult
-  if (detectedNonLatin && visualMatchesResult.length === 0) {
-    effectiveVisualMatches = await getVisualMatches(normalizedBuffer, 22)
-  }
-  const visualIds = new Set(effectiveVisualMatches.map((c) => c.id))
-
-  const scored = candidates.map((c) => {
-    let score = 0
-    if (targetNum != null && normalizeNumber(c.card_number) === targetNum) score += 100
-    if (c.name && c.name.toLowerCase().trim() === nameLower) score += 20
-    else if (c.name && nameLower && c.name.toLowerCase().includes(nameLower)) score += 5
-    if (visualIds.has(c.id)) score += 10
-    if (detectedSetAbbr && c.set_abbr && c.set_abbr.toUpperCase() === detectedSetAbbr) score += 50
-    if (detectedNonLatin && c.region === "JP") score += 30
-    if (!detectedNonLatin && c.region === "US") score += 15
-    return { card: c, score }
-  })
-
-  scored.sort((a, b) => b.score - a.score)
-
-  return {
-    name: name,
-    cardNumber: cardNumberFull || cardNumber,
-    candidates: scored.map((s) => s.card),
-    detectedNonLatin: detectedNonLatin,
-  }
 }
 
 function hammingDistance(hashA, hashB) {
@@ -1190,7 +970,7 @@ async function computeScanHash(buffer) {
   return hex
 }
 
-export async function getVisualMatches(buffer) {
+export async function getVisualMatches(buffer, distanceThreshold) {
   let scanHash
   try {
     scanHash = await computeScanHash(buffer)
@@ -1203,18 +983,18 @@ export async function getVisualMatches(buffer) {
     .from("cards")
     .select("id, image_phash")
     .not("image_phash", "is", null)
+    .neq("image_phash", "FAILED")
 
   if (!allHashes || allHashes.length === 0) return []
 
-  const DISTANCE_THRESHOLD = 12
-
   const scored = allHashes
     .map((c) => ({ id: c.id, distance: hammingDistance(scanHash, c.image_phash) }))
-    .filter((c) => c.distance <= DISTANCE_THRESHOLD)
+    .filter((c) => c.distance <= distanceThreshold)
     .sort((a, b) => a.distance - b.distance)
     .slice(0, 10)
 
   const topIds = scored.map((s) => s.id)
+  if (topIds.length === 0) return []
 
   const { data: fullCards } = await supabase
     .from("cards")
@@ -1227,142 +1007,38 @@ export async function getVisualMatches(buffer) {
   return scored.map((s) => byId[s.id]).filter(Boolean)
 }
 
-export async function createQuoteSession() {
-  const supabase = await createClient()
-  const id = Array.from({ length: 10 }, () =>
-    "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]
-  ).join("")
-
-  const { error } = await supabase.from("quote_sessions").insert({ id })
-  if (error) throw new Error(error.message)
-  return id
+function isLikelyNonLatin(str) {
+  return !!str && /[^\x00-\x7F]/.test(str)
 }
 
-export async function getQuoteSession(quoteId) {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from("quote_sessions")
-    .select("*")
-    .eq("id", quoteId)
-    .maybeSingle()
-  return data
+function normalizeCardNumber(str) {
+  if (!str) return null
+  const match = String(str).match(/(\d+)/)
+  return match ? parseInt(match[1], 10) : null
 }
 
-export async function addItemToQuote(formData) {
-  const supabase = await createClient()
-  const quoteSessionId = formData.get("quote_session_id")
-  const cardId = formData.get("card_id")
-  const variant = formData.get("variant") || "Standard"
-  const condition = formData.get("condition") || "NM"
-  const isGraded = formData.get("is_graded") === "yes"
-  const gradeValue = isGraded ? formData.get("grade_value") || null : null
-  const quantity = Number(formData.get("quantity")) || 1
-
-  const { error } = await supabase.from("quote_items").insert({
-    quote_session_id: quoteSessionId,
-    card_id: cardId,
-    variant,
-    condition,
-    is_graded: isGraded,
-    grade_value: gradeValue,
-    quantity,
-  })
-  if (error) throw new Error(error.message)
-}
-
-export async function getQuoteItems(quoteId) {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from("quote_items")
-    .select(
-      "id, variant, condition, is_graded, grade_value, quantity, created_at, cards(id, name, set_name, card_number, set_total, rarity, image_small, region, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus)"
-    )
-    .eq("quote_session_id", quoteId)
-    .order("created_at", { ascending: false })
-  return data || []
-}
-
-export async function removeQuoteItem(itemId) {
-  const supabase = await createClient()
-  const { error } = await supabase.from("quote_items").delete().eq("id", itemId)
-  if (error) throw new Error(error.message)
-}
-
-export async function claimQuoteSession(quoteId, targetCollectionId) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Not authenticated")
-
-  const items = await getQuoteItems(quoteId)
-
-  for (const item of items) {
-    if (!item.cards) continue
-    await supabase.from("user_cards").insert({
-      user_id: user.id,
-      card_id: item.cards.id,
-      quantity: item.quantity,
-      condition: item.condition,
-      variant: item.variant,
-      is_graded: item.is_graded,
-      grade_value: item.grade_value,
-      collection_id: targetCollectionId,
-    })
-  }
-
-  await supabase
-    .from("quote_sessions")
-    .update({ claimed: true, claimed_by: user.id, claimed_at: new Date().toISOString() })
-    .eq("id", quoteId)
-
-  revalidatePath("/collection")
-}
-
-export async function importQuoteAsCollection(quoteId, collectionName, items) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Not authenticated")
-
-  const { data: newCollection, error: colError } = await supabase
-    .from("collections")
-    .insert({ user_id: user.id, name: collectionName })
-    .select()
-    .single()
-  if (colError) throw new Error(colError.message)
-
-  for (const item of items) {
-    const { error } = await supabase.from("user_cards").insert({
-      user_id: user.id,
-      card_id: item.cardId,
-      quantity: item.quantity,
-      condition: item.isGraded ? "NM" : item.condition,
-      variant: item.variant,
-      is_graded: item.isGraded,
-      grade_value: item.isGraded ? item.gradeValue : null,
-      collection_id: newCollection.id,
-    })
-    if (error) throw new Error(error.message)
-  }
-
-  await supabase
-    .from("quote_sessions")
-    .update({ claimed: true, claimed_by: user.id, claimed_at: new Date().toISOString() })
-    .eq("id", quoteId)
-
-  revalidatePath("/collection")
-  return newCollection.id
-}
-
-export async function incrementQuoteItemQuantity(itemId, newQuantity) {
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from("quote_items")
-    .update({ quantity: newQuantity })
-    .eq("id", itemId)
-  if (error) throw new Error(error.message)
-}
-
-export async function quickScanCard(base64Data) {
+async function readCardTextAndImage(base64Data) {
   const API_KEY = process.env.GOOGLE_VISION_API_KEY
+  const rawBuffer = Buffer.from(base64Data, "base64")
+
+  let normalizedBuffer
+  let normalizedBase64
+  try {
+    const image = await Jimp.read(rawBuffer)
+    const maxDim = 1200
+    if (image.bitmap.width > maxDim || image.bitmap.height > maxDim) {
+      if (image.bitmap.width > image.bitmap.height) {
+        image.resize({ w: maxDim })
+      } else {
+        image.resize({ h: maxDim })
+      }
+    }
+    normalizedBuffer = await image.getBuffer("image/jpeg")
+    normalizedBase64 = normalizedBuffer.toString("base64")
+  } catch {
+    normalizedBuffer = rawBuffer
+    normalizedBase64 = base64Data
+  }
 
   const visionRes = await fetch(
     "https://vision.googleapis.com/v1/images:annotate?key=" + API_KEY,
@@ -1372,7 +1048,7 @@ export async function quickScanCard(base64Data) {
       body: JSON.stringify({
         requests: [
           {
-            image: { content: base64Data },
+            image: { content: normalizedBase64 },
             features: [{ type: "TEXT_DETECTION" }],
           },
         ],
@@ -1383,7 +1059,7 @@ export async function quickScanCard(base64Data) {
 
   const annotations = visionData.responses && visionData.responses[0] ? visionData.responses[0].textAnnotations : null
   if (!annotations || annotations.length === 0) {
-    return { success: false, reason: "no_text" }
+    return { name: null, cardNumber: null, cardNumberFull: null, fullText: "", words: [], normalizedBuffer }
   }
 
   const words = annotations.slice(1)
@@ -1453,24 +1129,216 @@ export async function quickScanCard(base64Data) {
     }
   }
 
-  if (!name || !cardNumberFull || !cardNumberFull.includes("/")) {
+  return { name, cardNumber, cardNumberFull, fullText, words, normalizedBuffer }
+}
+
+export async function scanCardImage(base64Data) {
+  const read = await readCardTextAndImage(base64Data)
+  const name = read.name
+  const cardNumber = read.cardNumber
+  const cardNumberFull = read.cardNumberFull
+  const words = read.words
+  const normalizedBuffer = read.normalizedBuffer
+
+  const quickVisualMatches = await getVisualMatches(normalizedBuffer, 4)
+
+  let visualMatchesResult
+  if (quickVisualMatches.length > 0) {
+    visualMatchesResult = quickVisualMatches
+  } else {
+    visualMatchesResult = await getVisualMatches(normalizedBuffer, 12)
+  }
+
+  const bottomThird = 0
+  const knownAbbrs = await getKnownSetAbbrs()
+  let detectedSetAbbr = null
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i]
+    const text = word.description.toUpperCase()
+    if (text.length < 2 || text.length > 5) continue
+    if (!/^[A-Z0-9]+$/.test(text)) continue
+    if (text === "EN" || text === "JP") continue
+    if (knownAbbrs[text]) {
+      detectedSetAbbr = text
+      break
+    }
+  }
+
+  const detectedNonLatin = isLikelyNonLatin(name)
+
+  let candidates = []
+  if (name && !detectedNonLatin) {
+    const searchQuery = cardNumber ? name + " " + cardNumber : name
+    const searchResult = await searchCards(searchQuery, "name", 1, 6)
+    candidates = searchResult.results || []
+  }
+
+  let effectiveVisualMatches = visualMatchesResult
+  if (detectedNonLatin && visualMatchesResult.length === 0) {
+    effectiveVisualMatches = await getVisualMatches(normalizedBuffer, 22)
+  }
+
+  const seenIds = new Set(candidates.map((c) => c.id))
+  for (const match of effectiveVisualMatches) {
+    if (!seenIds.has(match.id) && candidates.length < 10) {
+      candidates.push(match)
+      seenIds.add(match.id)
+    }
+  }
+
+  const targetNum = normalizeCardNumber(cardNumber)
+  const nameLower = (name || "").toLowerCase().trim()
+  const visualIds = new Set(effectiveVisualMatches.map((c) => c.id))
+
+  const scored = candidates.map((c) => {
+    let score = 0
+    if (targetNum != null && normalizeCardNumber(c.card_number) === targetNum) score += 100
+    if (c.name && c.name.toLowerCase().trim() === nameLower) score += 20
+    else if (c.name && nameLower && c.name.toLowerCase().includes(nameLower)) score += 5
+    if (visualIds.has(c.id)) score += 10
+    if (detectedSetAbbr && c.set_abbr && c.set_abbr.toUpperCase() === detectedSetAbbr) score += 50
+    if (detectedNonLatin && c.region === "JP") score += 30
+    if (!detectedNonLatin && c.region === "US") score += 15
+    return { card: c, score }
+  })
+
+  scored.sort((a, b) => b.score - a.score)
+
+  return {
+    name: name,
+    cardNumber: cardNumberFull || cardNumber,
+    candidates: scored.map((s) => s.card),
+    detectedNonLatin: detectedNonLatin,
+  }
+}
+
+export async function quickScanCard(base64Data) {
+  const API_KEY = process.env.GOOGLE_VISION_API_KEY
+
+  const visionRes = await fetch(
+    "https://vision.googleapis.com/v1/images:annotate?key=" + API_KEY,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [
+          {
+            image: { content: base64Data },
+            features: [{ type: "TEXT_DETECTION" }],
+          },
+        ],
+      }),
+    }
+  )
+  const visionData = await visionRes.json()
+
+  const annotations = visionData.responses && visionData.responses[0] ? visionData.responses[0].textAnnotations : null
+  if (!annotations || annotations.length === 0) {
+    return { success: false, reason: "no_text" }
+  }
+
+  const words = annotations.slice(1)
+  const fullText = annotations[0] ? annotations[0].description : ""
+
+  const numberPattern = /^([A-Z]{0,3}\d+)\/([A-Z]{0,3}\d+)$/
+  let cardNumber = null
+  let cardNumberFull = null
+  for (let i = 0; i < words.length; i++) {
+    const match = words[i].description.match(numberPattern)
+    if (match) {
+      cardNumber = match[1]
+      cardNumberFull = match[0]
+      break
+    }
+  }
+  if (!cardNumberFull) {
+    const looseMatch = fullText.match(/([A-Z]{0,3}\d+)\s*\/\s*([A-Z]{0,3}\d+)/)
+    if (looseMatch) {
+      cardNumber = looseMatch[1]
+      cardNumberFull = looseMatch[1] + "/" + looseMatch[2]
+    }
+  }
+
+  let isPromo = false
+  let promoCode = null
+  if (!cardNumberFull && /PROMO/i.test(fullText)) {
+    isPromo = true
+    const promoPattern = /^[A-Z]{0,5}\d{1,4}$/
+    for (let i = 0; i < words.length; i++) {
+      const text = words[i].description.toUpperCase()
+      if (text === "PROMO") continue
+      if (promoPattern.test(text) && /\d/.test(text)) {
+        promoCode = text
+        break
+      }
+    }
+  }
+
+  const STAGE_WORDS = { BASIC: true, STAGE: true, HP: true, "たね": true }
+
+  const allY = words.map(function (w) {
+    return w.boundingPoly && w.boundingPoly.vertices && w.boundingPoly.vertices[0] ? w.boundingPoly.vertices[0].y || 0 : 0
+  })
+  const minY = Math.min.apply(null, allY)
+  const maxY = Math.max.apply(null, allY)
+  const topThird = minY + (maxY - minY) * 0.35
+
+  const nameBandCandidates = []
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i]
+    const verts = (word.boundingPoly && word.boundingPoly.vertices) || []
+    const y = verts[0] ? (verts[0].y || Infinity) : Infinity
+    if (y > topThird) continue
+    if (word.description.length < 2) continue
+    if (STAGE_WORDS[word.description.toUpperCase()]) continue
+    if (/\d/.test(word.description)) continue
+
+    const ys = verts.map(function (v) { return v.y || 0 })
+    const height = Math.max.apply(null, ys) - Math.min.apply(null, ys)
+    const x = verts[0] ? (verts[0].x || 0) : 0
+    nameBandCandidates.push({ word: word.description, y: y, x: x, height: height })
+  }
+
+  let bestWord = null
+  let bestHeight = 0
+  for (const c of nameBandCandidates) {
+    if (c.height > bestHeight) {
+      bestHeight = c.height
+      bestWord = c
+    }
+  }
+
+  let name = bestWord ? bestWord.word : null
+  if (bestWord) {
+    const lineTolerance = bestWord.height * 0.7
+    const sameLineWords = nameBandCandidates
+      .filter(function (c) { return Math.abs(c.y - bestWord.y) <= lineTolerance })
+      .sort(function (a, b) { return a.x - b.x })
+    if (sameLineWords.length > 1) {
+      name = sameLineWords.map(function (c) { return c.word }).join(" ")
+    }
+  }
+
+  if (!name) {
+    return { success: false, reason: "incomplete" }
+  }
+  if (!isPromo && (!cardNumberFull || !cardNumberFull.includes("/"))) {
+    return { success: false, reason: "incomplete" }
+  }
+  if (isPromo && !promoCode) {
     return { success: false, reason: "incomplete" }
   }
 
-  function normalizeNumber(str) {
-    const match = String(str || "").match(/(\d+)/)
-    return match ? parseInt(match[1], 10) : null
+  let targetNum = null
+  let targetTotal = null
+  if (!isPromo) {
+    const numParts = cardNumberFull.split("/")
+    targetNum = normalizeCardNumber(numParts[0])
+    targetTotal = normalizeCardNumber(numParts[1])
+    if (targetNum == null || targetTotal == null) {
+      return { success: false, reason: "incomplete" }
+    }
   }
-  const numParts = cardNumberFull.split("/")
-  const targetNum = normalizeNumber(numParts[0])
-  const targetTotal = normalizeNumber(numParts[1])
-
-  if (targetNum == null || targetTotal == null) {
-    return { success: false, reason: "incomplete" }
-  }
-
-  const searchResult = await searchCards(name + " " + cardNumber, "name", 1, 8)
-  const results = searchResult.results || []
 
   const nameLower = name.toLowerCase().trim()
   function nameMatches(candidateName) {
@@ -1479,10 +1347,30 @@ export async function quickScanCard(base64Data) {
     return cLower === nameLower || cLower.indexOf(nameLower) === 0 || nameLower.indexOf(cLower) === 0
   }
 
+  if (isPromo) {
+    const promoSearchResult = await searchCards(name + " " + promoCode, "name", 1, 8)
+    const promoResults = promoSearchResult.results || []
+    const promoCodeLower = promoCode.toLowerCase()
+
+    const promoMatch = promoResults.find(function (c) {
+      const storedNumber = (c.card_number || "").toLowerCase().replace(/\s+/g, "")
+      return storedNumber === promoCodeLower && nameMatches(c.name)
+    })
+
+    if (promoMatch) {
+      return { success: true, card: promoMatch, name: name, cardNumber: promoCode }
+    }
+
+    return { success: false, reason: "no_confident_match" }
+  }
+
+  const searchResult = await searchCards(name + " " + cardNumber, "name", 1, 8)
+  const results = searchResult.results || []
+
   const fullMatch = results.find(function (c) {
     return (
-      normalizeNumber(c.card_number) === targetNum &&
-      normalizeNumber(c.set_total) === targetTotal &&
+      normalizeCardNumber(c.card_number) === targetNum &&
+      normalizeCardNumber(c.set_total) === targetTotal &&
       nameMatches(c.name)
     )
   })
@@ -1492,7 +1380,7 @@ export async function quickScanCard(base64Data) {
   }
 
   const numberOnlyMatch = results.find(function (c) {
-    return normalizeNumber(c.card_number) === targetNum && nameMatches(c.name)
+    return normalizeCardNumber(c.card_number) === targetNum && nameMatches(c.name)
   })
 
   if (numberOnlyMatch) {
@@ -1500,4 +1388,138 @@ export async function quickScanCard(base64Data) {
   }
 
   return { success: false, reason: "no_confident_match" }
+}
+
+export async function createQuoteSession() {
+  const supabase = await createClient()
+  const id = Array.from({ length: 10 }, () =>
+    "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]
+  ).join("")
+
+  const { error } = await supabase.from("quote_sessions").insert({ id })
+  if (error) throw new Error(error.message)
+  return id
+}
+
+export async function getQuoteSession(quoteId) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("quote_sessions")
+    .select("*")
+    .eq("id", quoteId)
+    .maybeSingle()
+  return data
+}
+
+export async function addItemToQuote(formData) {
+  const supabase = await createClient()
+  const quoteSessionId = formData.get("quote_session_id")
+  const cardId = formData.get("card_id")
+  const variant = formData.get("variant") || "Standard"
+  const condition = formData.get("condition") || "NM"
+  const isGraded = formData.get("is_graded") === "yes"
+  const gradeValue = isGraded ? formData.get("grade_value") || null : null
+  const quantity = Number(formData.get("quantity")) || 1
+
+  const { error } = await supabase.from("quote_items").insert({
+    quote_session_id: quoteSessionId,
+    card_id: cardId,
+    variant,
+    condition,
+    is_graded: isGraded,
+    grade_value: gradeValue,
+    quantity,
+  })
+  if (error) throw new Error(error.message)
+}
+
+export async function getQuoteItems(quoteId) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("quote_items")
+    .select(
+      "id, variant, condition, is_graded, grade_value, quantity, created_at, cards(id, name, set_name, card_number, set_total, rarity, image_small, region, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil, raw_skus)"
+    )
+    .eq("quote_session_id", quoteId)
+    .order("created_at", { ascending: false })
+  return data || []
+}
+
+export async function removeQuoteItem(itemId) {
+  const supabase = await createClient()
+  const { error } = await supabase.from("quote_items").delete().eq("id", itemId)
+  if (error) throw new Error(error.message)
+}
+
+export async function incrementQuoteItemQuantity(itemId, newQuantity) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from("quote_items")
+    .update({ quantity: newQuantity })
+    .eq("id", itemId)
+  if (error) throw new Error(error.message)
+}
+
+export async function claimQuoteSession(quoteId, targetCollectionId) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const items = await getQuoteItems(quoteId)
+
+  for (const item of items) {
+    if (!item.cards) continue
+    await supabase.from("user_cards").insert({
+      user_id: user.id,
+      card_id: item.cards.id,
+      quantity: item.quantity,
+      condition: item.condition,
+      variant: item.variant,
+      is_graded: item.is_graded,
+      grade_value: item.grade_value,
+      collection_id: targetCollectionId,
+    })
+  }
+
+  await supabase
+    .from("quote_sessions")
+    .update({ claimed: true, claimed_by: user.id, claimed_at: new Date().toISOString() })
+    .eq("id", quoteId)
+
+  revalidatePath("/collection")
+}
+
+export async function importQuoteAsCollection(quoteId, collectionName, items) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const { data: newCollection, error: colError } = await supabase
+    .from("collections")
+    .insert({ user_id: user.id, name: collectionName })
+    .select()
+    .single()
+  if (colError) throw new Error(colError.message)
+
+  for (const item of items) {
+    const { error } = await supabase.from("user_cards").insert({
+      user_id: user.id,
+      card_id: item.cardId,
+      quantity: item.quantity,
+      condition: item.isGraded ? "NM" : item.condition,
+      variant: item.variant,
+      is_graded: item.isGraded,
+      grade_value: item.isGraded ? item.gradeValue : null,
+      collection_id: newCollection.id,
+    })
+    if (error) throw new Error(error.message)
+  }
+
+  await supabase
+    .from("quote_sessions")
+    .update({ claimed: true, claimed_by: user.id, claimed_at: new Date().toISOString() })
+    .eq("id", quoteId)
+
+  revalidatePath("/collection")
+  return newCollection.id
 }
