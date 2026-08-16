@@ -71,7 +71,7 @@ export default function QuoteScan({ quoteId }) {
     if (!autoScanning) return
     const interval = setInterval(function () {
       runScanTick()
-    }, 2000)
+    }, 1000)
     return function () { clearInterval(interval) }
   }, [autoScanning, addedItems])
 
@@ -128,7 +128,7 @@ export default function QuoteScan({ quoteId }) {
       await refreshItems()
       setTimeout(function () { setToast("") }, 2000)
     } catch (err) {
-      // Silently ignore a single failed tick — the next scan 2 seconds later will just try again.
+      // Silently ignore a single failed tick — the next scan 1 seconds later will just try again.
     } finally {
       busyRef.current = false
     }
@@ -181,7 +181,7 @@ export default function QuoteScan({ quoteId }) {
             <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: 13 }}>No cards added yet.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {addedItems.map(function (item) {
+              {[addedItems].reverse().map(function (item) {
                 return (
                   <div key={item.id} style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 6, padding: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
