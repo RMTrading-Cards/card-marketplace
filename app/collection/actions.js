@@ -1453,7 +1453,7 @@ export async function quickScanCard(base64Data) {
     }
   }
 
-  if (!name || !cardNumber) {
+  if (!name || !cardNumberFull || !cardNumberFull.includes("/")) {
     return { success: false, reason: "incomplete" }
   }
 
@@ -1461,13 +1461,19 @@ export async function quickScanCard(base64Data) {
     const match = String(str || "").match(/(\d+)/)
     return match ? parseInt(match[1], 10) : null
   }
-  const targetNum = normalizeNumber(cardNumber)
+  const numParts = cardNumberFull.split("/")
+  const targetNum = normalizeNumber(numParts[0])
+  const targetTotal = normalizeNumber(numParts[1])
 
-  const searchResult = await searchCards(name + " " + cardNumber, "name", 1, 5)
+  if (targetNum == null || targetTotal == null) {
+    return { success: false, reason: "incomplete" }
+  }
+
+  const searchResult = await searchCards(name + " " + cardNumber, "name", 1, 8)
   const results = searchResult.results || []
 
   const exactMatch = results.find(function (c) {
-    return normalizeNumber(c.card_number) === targetNum
+    return normalizeNumber(c.card_number) === targetNum && normalizeNumber(c.set_total) === targetTotal
   })
 
   if (!exactMatch) {
