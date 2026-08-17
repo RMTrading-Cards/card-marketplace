@@ -1679,3 +1679,24 @@ export async function getCardAllConditionPrices(cardId, variant) {
 
   return result
 }
+
+export async function getCardConditionRange(cardId, variant, condition) {
+  const supabase = await createClient()
+  const { data: card } = await supabase
+    .from("cards")
+    .select("raw_skus, region")
+    .eq("id", cardId)
+    .single()
+
+  if (!card || !card.raw_skus) return { low: null, high: null }
+
+  const wantLang = card.region === "JP" ? "JP" : "EN"
+  const rows = Object.values(card.raw_skus)
+  const matches = rows.filter(function (r) { return r.var === variant && r.cnd === condition })
+  const best = matches.find(function (r) { return r.lng === wantLang }) || matches[0]
+
+  return {
+    low: best?.low ?? null,
+    high: best?.hi ?? null,
+  }
+}

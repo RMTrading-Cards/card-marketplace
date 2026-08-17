@@ -9,6 +9,7 @@ import RecentQuotes from "./RecentQuotes"
 import CollectionSelector from "./CollectionSelector"
 import PriceHistoryModal from "./PriceHistoryModal"
 import EbaySoldButton from "./EbaySoldButton"
+import { getConditionPriceRange } from "@/lib/pricing"
 import {
   removeCardFromCollection,
   removeSealedFromCollection,
@@ -22,6 +23,7 @@ import {
   removeSoldItem,
   getCardConditionPrice,
   getCardAllConditionPrices,
+  getCardConditionRange,
   moveItemToCollection,
 } from "./actions"
 
@@ -216,7 +218,7 @@ function formatPriceShort(n) {
   return n == null ? "N/A" : "$" + n.toFixed(2)
 }
 
-function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate }) {
+function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate, onRangeUpdate }) {
   const [value, setValue] = useState(condition)
   const [submitting, setSubmitting] = useState(false)
   const [priceMap, setPriceMap] = useState(null)
@@ -231,9 +233,22 @@ function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate }) {
       getCardAllConditionPrices(cardId, variant).then(function (map) {
         if (!cancelled) setPriceMap(map)
       })
+      getCardConditionRange(cardId, variant, condition).then(function (range) {
+        if (!cancelled) onRangeUpdate?.(id, range)
+      })
     }
     return function () { cancelled = true }
   }, [cardId, variant])
+
+  useEffect(() => {
+    let cancelled = false
+    if (cardId) {
+      getCardConditionRange(cardId, variant, value).then(function (range) {
+        if (!cancelled) onRangeUpdate?.(id, range)
+      })
+    }
+    return function () { cancelled = true }
+  }, [value])
 
   async function handleChange(e) {
     const newCondition = e.target.value
@@ -525,6 +540,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
   const [tab, setTab] = useState("collection")
   const [priceOverrides, setPriceOverrides] = useState({})
+  const [rangeOverrides, setRangeOverrides] = useState({})
   const [sellingMode, setSellingMode] = useState(false)
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
@@ -836,6 +852,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           cardId={card?.id}
                           variant={row.variant}
                           onPriceUpdate={(rowId, price) => setPriceOverrides((prev) => ({ ...prev, [rowId]: price }))}
+                          onRangeUpdate={(rowId, range) => setRangeOverrides((prev) => ({ ...prev, [rowId]: range }))}
                         />
                         <EditablePaid id={row.id} itemType="card" purchasePrice={purchasePrice} />
                       </div>
@@ -848,6 +865,11 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                           <ThresholdRow label="90%" value={market * 0.9} purchasePrice={purchasePrice} />
                           <ThresholdRow label="95%" value={market * 0.95} purchasePrice={purchasePrice} />
                           <ThresholdRow label="eBay Payout (~87%)" value={payout} purchasePrice={purchasePrice} />
+                          {rangeOverrides[row.id] && (rangeOverrides[row.id].low != null || rangeOverrides[row.id].high != null) && (
+                            <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                              Range: {formatPrice(rangeOverrides[row.id].low)} - {formatPrice(rangeOverrides[row.id].high)}
+                            </div>
+                          )}
                           <ThresholdRow label={"Market (" + row.condition + ")"} value={market} purchasePrice={purchasePrice} big />
                         </div>
                       ) : (
