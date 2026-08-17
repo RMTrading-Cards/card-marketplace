@@ -16,6 +16,29 @@ const inputStyle = {
 const GRADE_OPTIONS = []
 for (let g = 10; g >= 1; g -= 0.5) GRADE_OPTIONS.push(g.toFixed(1))
 
+const EBAY_FVF_RATE = 0.1325
+const EBAY_PER_ORDER_FEE = 0.40
+
+function formatPrice(n) {
+  return n == null ? "N/A" : "$" + n.toFixed(2)
+}
+
+function ebayPayout(value) {
+  if (value == null) return null
+  return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
+}
+
+function getVariantPrice(card, variant) {
+  if (!card) return null
+  switch (variant) {
+    case "Normal": return card.price_normal
+    case "Holofoil": return card.price_holofoil
+    case "Reverse Holofoil": return card.price_reverse_holofoil
+    case "1st Edition Holofoil": return card.price_1st_edition_holofoil
+    default: return card.tcgplayer_market_price
+  }
+}
+
 function getVariants(card) {
   const variants = []
   if (card.price_normal != null) variants.push("Normal")
@@ -31,14 +54,25 @@ function EditableItem(props) {
   const onChange = props.onChange
   const card = item.cards
   const variants = card ? getVariants(card) : ["Standard"]
+  const market = getVariantPrice(card, item.variant)
+  const payout = ebayPayout(market)
 
   return (
     <div style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
-      <div style={{ flex: "1 1 30%", maxWidth: 130 }}>
+      <div style={{ flex: "1 1 30%", maxWidth: 150 }}>
         {card?.image_small && <img src={card.image_small} alt={card.name} style={{ width: "100%", borderRadius: 6 }} />}
       </div>
       <div style={{ flex: "1 1 60%", minWidth: 200, color: "#ffffff" }}>
-        <strong>{card?.name}</strong> <span style={{ color: "#9ca3af", fontSize: 12 }}>({card?.set_name})</span>
+        <strong>
+          {card?.region === "JP" ? "JP " : ""}{card?.name}
+          {card?.card_number && card?.set_total && (
+            <span style={{ color: "#9ca3af" }}> {card.card_number}/{card.set_total}</span>
+          )}
+        </strong>{" "}
+        <span style={{ color: "#9ca3af" }}>({card?.set_name})</span>
+        {card?.rarity && (
+          <div style={{ color: "#F2B705", fontSize: 12, marginTop: 2 }}>{card.rarity}</div>
+        )}
 
         <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
           <select value={item.variant} onChange={function (e) { onChange({ variant: e.target.value }) }} style={inputStyle}>
@@ -80,6 +114,28 @@ function EditableItem(props) {
             <option value="HP">Heavily Played</option>
             <option value="DMG">Damaged</option>
           </select>
+        )}
+
+        {market != null ? (
+          <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2, marginTop: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#d1d5db" }}>
+              <span>85%: {formatPrice(market * 0.85)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#d1d5db" }}>
+              <span>90%: {formatPrice(market * 0.9)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#d1d5db" }}>
+              <span>95%: {formatPrice(market * 0.95)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#d1d5db" }}>
+              <span>eBay Payout (~87%): {formatPrice(payout)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
+              <span>Market: {formatPrice(market)}</span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ color: "#9ca3af", fontSize: 13, marginTop: 10 }}>Market: N/A</div>
         )}
       </div>
     </div>
@@ -162,9 +218,15 @@ export default function RecentQuotes() {
           Back to Quotes
         </button>
 
-        <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
+        <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 4 }}>
           Review Quote ({items.length} items)
         </h2>
+        <p style={{ color: "#F2B705", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+          Total Market Value: {formatPrice(items.reduce(function (sum, item) {
+            const m = getVariantPrice(item.cards, item.variant)
+            return sum + (m || 0) * item.quantity
+          }, 0))}
+        </p>
 
         <div style={{ marginBottom: 16 }}>
           <label style={{ color: "#9ca3af", fontSize: 12, display: "block", marginBottom: 4 }}>New collection name:</label>

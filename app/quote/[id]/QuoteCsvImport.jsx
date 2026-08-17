@@ -51,11 +51,17 @@ export default function QuoteCsvImport(props) {
             return
           }
 
+          const SEALED_KEYWORDS = ["box", "collection", "tin", "pack", "bundle", "case", "etb", "elite trainer", "blister", "display", "deck"]
+
           const rows = parsed.data
             .filter(function (r) {
               if (!categoryHeader) return true
               const cat = (r[categoryHeader] || "").toLowerCase().trim()
               return cat === "pokemon" || cat === "pokémon" || cat === ""
+            })
+            .filter(function (r) {
+              const nameLower = (r[nameHeader] || "").toLowerCase()
+              return !SEALED_KEYWORDS.some(function (kw) { return nameLower.indexOf(kw) !== -1 })
             })
             .map(function (r) {
               return {
