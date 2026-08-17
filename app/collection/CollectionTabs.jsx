@@ -9,7 +9,7 @@ import RecentQuotes from "./RecentQuotes"
 import CollectionSelector from "./CollectionSelector"
 import PriceHistoryModal from "./PriceHistoryModal"
 import EbaySoldButton from "./EbaySoldButton"
-import { getConditionPriceRange } from "@/lib/pricing"
+import { getVariantPrice as sharedGetVariantPrice, getConditionPriceRange } from "@/lib/pricing"
 import {
   removeCardFromCollection,
   removeSealedFromCollection,
@@ -21,9 +21,6 @@ import {
   sellSealedItem,
   clearSoldHistory,
   removeSoldItem,
-  getCardConditionPrice,
-  getCardAllConditionPrices,
-  getCardConditionRange,
   moveItemToCollection,
 } from "./actions"
 
@@ -849,7 +846,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
                         <ConditionEditor
                           id={row.id}
                           condition={row.condition}
-                          cardId={card?.id}
+                          card={card}
                           variant={row.variant}
                           onPriceUpdate={(rowId, price) => setPriceOverrides((prev) => ({ ...prev, [rowId]: price }))}
                           onRangeUpdate={(rowId, range) => setRangeOverrides((prev) => ({ ...prev, [rowId]: range }))}
