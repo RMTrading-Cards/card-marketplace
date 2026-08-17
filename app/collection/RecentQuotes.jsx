@@ -39,6 +39,17 @@ function getVariantPrice(card, variant) {
   }
 }
 
+function getConditionPrice(card, variant, condition) {
+  const base = getVariantPrice(card, variant)
+  if (!card?.raw_skus) return base
+
+  const wantLang = card.region === "JP" ? "JP" : "EN"
+  const rows = Object.values(card.raw_skus)
+  const matches = rows.filter(function (r) { return r.var === variant && r.cnd === condition })
+  const best = matches.find(function (r) { return r.lng === wantLang }) || matches[0]
+  return best?.mkt ?? base
+}
+
 function getVariants(card) {
   const variants = []
   if (card.price_normal != null) variants.push("Normal")
@@ -54,7 +65,7 @@ function EditableItem(props) {
   const onChange = props.onChange
   const card = item.cards
   const variants = card ? getVariants(card) : ["Standard"]
-  const market = getVariantPrice(card, item.variant)
+  const market = item.isGraded ? getVariantPrice(card, item.variant) : getConditionPrice(card, item.variant, item.condition)
   const payout = ebayPayout(market)
 
   return (
@@ -131,7 +142,7 @@ function EditableItem(props) {
               <span>eBay Payout (~87%): {formatPrice(payout)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
-              <span>Market: {formatPrice(market)}</span>
+              <span>Market ({item.isGraded ? "Graded" : item.condition}): {formatPrice(market)}</span>
             </div>
           </div>
         ) : (
@@ -223,7 +234,7 @@ export default function RecentQuotes() {
         </h2>
         <p style={{ color: "#F2B705", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
           Total Market Value: {formatPrice(items.reduce(function (sum, item) {
-            const m = getVariantPrice(item.cards, item.variant)
+            const m = item.isGraded ? getVariantPrice(item.cards, item.variant) : getConditionPrice(item.cards, item.variant, item.condition)
             return sum + (m || 0) * item.quantity
           }, 0))}
         </p>
