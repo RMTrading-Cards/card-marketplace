@@ -1641,3 +1641,41 @@ export async function importCsvRowsToQuote(quoteSessionId, rows) {
 
   return results
 }
+
+export async function getCardAllConditionPrices(cardId, variant) {
+  const supabase = await createClient()
+  const { data: card } = await supabase
+    .from("cards")
+    .select("raw_skus, region, tcgplayer_market_price, price_normal, price_holofoil, price_reverse_holofoil, price_1st_edition_holofoil")
+    .eq("id", cardId)
+    .single()
+
+  const CONDITIONS = ["NM", "LP", "MP", "HP", "DMG"]
+
+  function fallback() {
+    switch (variant) {
+      case "Normal": return card?.price_normal ?? null
+      case "Holofoil": return card?.price_holofoil ?? null
+      case "Reverse Holofoil": return card?.price_reverse_holofoil ?? null
+      case "1st Edition Holofoil": return card?.price_1st_edition_holofoil ?? null
+      default: return card?.tcgplayer_market_price ?? null
+    }
+  }
+
+  const result = {}
+  if (!card) {
+    for (const c of CONDITIONS) result[c] = null
+    return result
+  }
+
+  const wantLang = card.region === "JP" ? "JP" : "EN"
+  const rows = card.raw_skus ? Object.values(card.raw_skus) : []
+
+  for (const cond of CONDITIONS) {
+    const matches = rows.filter(function (r) { return r.var === variant && r.cnd === cond })
+    const best = matches.find(function (r) { return r.lng === wantLang }) || matches[0]
+    result[cond] = best?.mkt ?? fallback()
+  }
+
+  return result
+}

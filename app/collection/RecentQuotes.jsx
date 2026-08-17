@@ -28,27 +28,7 @@ function ebayPayout(value) {
   return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
 }
 
-function getVariantPrice(card, variant) {
-  if (!card) return null
-  switch (variant) {
-    case "Normal": return card.price_normal
-    case "Holofoil": return card.price_holofoil
-    case "Reverse Holofoil": return card.price_reverse_holofoil
-    case "1st Edition Holofoil": return card.price_1st_edition_holofoil
-    default: return card.tcgplayer_market_price
-  }
-}
-
-function getConditionPrice(card, variant, condition) {
-  const base = getVariantPrice(card, variant)
-  if (!card?.raw_skus) return base
-
-  const wantLang = card.region === "JP" ? "JP" : "EN"
-  const rows = Object.values(card.raw_skus)
-  const matches = rows.filter(function (r) { return r.var === variant && r.cnd === condition })
-  const best = matches.find(function (r) { return r.lng === wantLang }) || matches[0]
-  return best?.mkt ?? base
-}
+import { getVariantPrice, getConditionPriceRange } from "@/lib/pricing"
 
 function getVariants(card) {
   const variants = []
@@ -65,7 +45,10 @@ function EditableItem(props) {
   const onChange = props.onChange
   const card = item.cards
   const variants = card ? getVariants(card) : ["Standard"]
-  const market = item.isGraded ? getVariantPrice(card, item.variant) : getConditionPrice(card, item.variant, item.condition)
+  const priceRange = item.isGraded
+    ? { low: null, market: getVariantPrice(card, item.variant), high: null }
+    : getConditionPriceRange(card, item.variant, item.condition)
+  const market = priceRange.market
   const payout = ebayPayout(market)
 
   return (
@@ -129,6 +112,11 @@ function EditableItem(props) {
 
         {market != null ? (
           <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2, marginTop: 10 }}>
+            {(priceRange.low != null || priceRange.high != null) && (
+              <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                Range: {formatPrice(priceRange.low)} - {formatPrice(priceRange.high)}
+              </div>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#d1d5db" }}>
               <span>85%: {formatPrice(market * 0.85)}</span>
             </div>
@@ -234,7 +222,7 @@ export default function RecentQuotes() {
         </h2>
         <p style={{ color: "#F2B705", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
           Total Market Value: {formatPrice(items.reduce(function (sum, item) {
-            const m = item.isGraded ? getVariantPrice(item.cards, item.variant) : getConditionPrice(item.cards, item.variant, item.condition)
+            const m = item.isGraded ? getVariantPrice(item.cards, item.variant) : getConditionPriceRange(item.cards, item.variant, item.condition).market
             return sum + (m || 0) * item.quantity
           }, 0))}
         </p>

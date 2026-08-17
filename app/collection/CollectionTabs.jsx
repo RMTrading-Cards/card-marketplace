@@ -21,6 +21,7 @@ import {
   clearSoldHistory,
   removeSoldItem,
   getCardConditionPrice,
+  getCardAllConditionPrices,
   moveItemToCollection,
 } from "./actions"
 
@@ -211,13 +212,28 @@ function AskPriceInput({ id, itemType, currentValue }) {
   )
 }
 
+function formatPriceShort(n) {
+  return n == null ? "N/A" : "$" + n.toFixed(2)
+}
+
 function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate }) {
   const [value, setValue] = useState(condition)
   const [submitting, setSubmitting] = useState(false)
+  const [priceMap, setPriceMap] = useState(null)
 
   useEffect(() => {
     setValue(condition)
   }, [condition])
+
+  useEffect(() => {
+    let cancelled = false
+    if (cardId) {
+      getCardAllConditionPrices(cardId, variant).then(function (map) {
+        if (!cancelled) setPriceMap(map)
+      })
+    }
+    return function () { cancelled = true }
+  }, [cardId, variant])
 
   async function handleChange(e) {
     const newCondition = e.target.value
@@ -228,7 +244,9 @@ function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate }) {
     formData.set("condition", newCondition)
     await updateItemCondition(formData)
 
-    if (cardId) {
+    if (priceMap && priceMap[newCondition] != null) {
+      onPriceUpdate?.(id, priceMap[newCondition])
+    } else if (cardId) {
       const newPrice = await getCardConditionPrice(cardId, variant, newCondition)
       onPriceUpdate?.(id, newPrice)
     }
@@ -250,7 +268,9 @@ function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate }) {
       }}
     >
       {CONDITIONS.map((c) => (
-        <option key={c} value={c}>{c}</option>
+        <option key={c} value={c}>
+          {priceMap ? c + ": " + formatPriceShort(priceMap[c]) : c}
+        </option>
       ))}
     </select>
   )
