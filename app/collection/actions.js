@@ -1508,3 +1508,136 @@ export async function importQuoteAsCollection(quoteId, collectionName, items) {
   revalidatePath("/collection")
   return newCollection.id
 }
+
+export async function submitQuoteSession(quoteId) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from("quote_sessions")
+    .update({ submitted: true, submitted_at: new Date().toISOString() })
+    .eq("id", quoteId)
+  if (error) throw new Error(error.message)
+}
+
+export async function listRecentQuotes() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const { data: sessions } = await supabase
+    .from("quote_sessions")
+    .select("*")
+    .eq("submitted", true)
+    .order("submitted_at", { ascending: false })
+    .limit(50)
+
+  const results = []
+  for (const session of sessions || []) {
+    const { count } = await supabase
+      .from("quote_items")
+      .select("id", { count: "exact", head: true })
+      .eq("quote_session_id", session.id)
+    results.push({ ...session, itemCount: count || 0 })
+  }
+  return results
+}
+
+function mapCsvCondition(raw) {
+  const v = (raw || "").toLowerCase().trim()
+  if (v.indexOf("near mint") !== -1 || v === "nm") return "NM"
+  if (v.indexOf("lightly") !== -1 || v === "lp") return "LP"
+  if (v.indexOf("moderately") !== -1 || v === "mp") return "MP"
+  if (v.indexOf("heavily") !== -1 || v === "hp") return "HP"
+  if (v.indexOf("damaged") !== -1 || v === "dmg") return "DMG"
+  return "NM"
+}
+
+function mapCsvVariant(raw) {
+  const v = (raw || "").toLowerCase().trim()
+  if (v.indexOf("1st") !== -1) return "1st Edition Holofoil"
+  if (v.indexOf("reverse") !== -1) return "Reverse Holofoil"
+  if (v.indexOf("holo") !== -1) return "Holofoil"
+  if (v.indexOf("unlimited") !== -1) return "Normal"
+  if (v.indexOf("normal") !== -1 || v.indexOf("non-holo") !== -1) return "Normal"
+  return "Standard"
+}
+
+function isCsvGraded(raw) {
+  const v = (raw || "").toLowerCase().trim()
+  return v !== "" && v !== "ungraded" && v !== "raw" && v !== "n/a"
+}
+
+export async function importCsvRowsToQuote(quoteSessionId, rows) {
+  const supabase = await createClient()
+  const results = []
+
+  function normalizeCsvNumber(str) {
+    if (!str) return null
+    const match = String(str).match(/(\d+)/)
+    return match ? parseInt(match[1], 10) : null
+  }
+
+  for (const row of rows) {
+    const name = (row.name || "").trim()
+    if (!name) {
+      results.push({ row, matched: false, reason: "No card name" })
+      continue
+    }
+
+    const searchQuery = row.cardNumber ? name + " " + row.cardNumber : name
+    const searchResult = await searchCards(searchQuery, "name", 1, 10)
+    const candidates = searchResult.results || []
+
+    const nameLower = name.toLowerCase().trim()
+    function nameMatches(cName) {
+      if (!cName) return false
+      const c = cName.toLowerCase().trim()
+      return c === nameLower || c.indexOf(nameLower) === 0 || nameLower.indexOf(c) === 0
+    }
+
+    let match = null
+    const targetNum = normalizeCsvNumber(row.cardNumber)
+
+    if (row.setName) {
+      const setLower = row.setName.toLowerCase()
+      match = candidates.find(function (c) {
+        return nameMatches(c.name) && c.set_name && c.set_name.toLowerCase().indexOf(setLower) !== -1
+      })
+    }
+    if (!match && targetNum != null) {
+      match = candidates.find(function (c) {
+        return nameMatches(c.name) && normalizeCsvNumber(c.card_number) === targetNum
+      })
+    }
+    if (!match) {
+      match = candidates.find(function (c) { return nameMatches(c.name) })
+    }
+
+    if (!match) {
+      results.push({ row, matched: false, reason: "No matching card found" })
+      continue
+    }
+
+    const isGraded = isCsvGraded(row.grade)
+    const condition = mapCsvCondition(row.condition)
+    const variant = mapCsvVariant(row.variant)
+    const quantity = Number(row.quantity) || 1
+
+    const { error } = await supabase.from("quote_items").insert({
+      quote_session_id: quoteSessionId,
+      card_id: match.id,
+      variant: variant,
+      condition: isGraded ? "NM" : condition,
+      is_graded: isGraded,
+      grade_value: isGraded ? row.grade : null,
+      quantity: quantity,
+    })
+
+    if (error) {
+      results.push({ row, matched: false, reason: error.message })
+    } else {
+      results.push({ row, matched: true, cardName: match.name })
+    }
+  }
+
+  return results
+}

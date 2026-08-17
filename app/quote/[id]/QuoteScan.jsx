@@ -1,6 +1,7 @@
 ﻿"use client"
 import { useEffect, useRef, useState } from "react"
-import { quickScanCard, addItemToQuote, getQuoteItems, removeQuoteItem, incrementQuoteItemQuantity } from "../../collection/actions"
+import { quickScanCard, addItemToQuote, getQuoteItems, removeQuoteItem, incrementQuoteItemQuantity, submitQuoteSession } from "../../collection/actions"
+import QuoteCsvImport from "./QuoteCsvImport"
 
 const STABILITY_CHECK_MS = 100
 const STABLE_FRAMES_REQUIRED = 2
@@ -53,9 +54,7 @@ function getSmallGrayscale(video, smallCanvas) {
 function averageDiff(a, b) {
   if (!a || !b || a.length !== b.length) return 999
   let sum = 0
-  for (let i = 0; i < a.length; i++) {
-    sum += Math.abs(a[i] - b[i])
-  }
+  for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i])
   return sum / a.length
 }
 
@@ -65,23 +64,23 @@ export default function QuoteScan({ quoteId }) {
   const smallCanvasRef = useRef(null)
   const lastKeyRef = useRef(null)
   const busyRef = useRef(false)
-
   const prevGrayRef = useRef(null)
   const stableCountRef = useRef(0)
   const readyToScanRef = useRef(true)
 
+  const [mode, setMode] = useState("scan")
   const [cameraError, setCameraError] = useState("")
   const [autoScanning, setAutoScanning] = useState(true)
   const [stabilityHint, setStabilityHint] = useState("Point at a card")
   const [addedItems, setAddedItems] = useState([])
   const [toast, setToast] = useState("")
-  const [showQr, setShowQr] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => { refreshItems() }, [])
 
   useEffect(() => {
-    refreshItems()
-  }, [])
-
-  useEffect(() => {
+    if (mode !== "scan") return
     let stream = null
 
     async function startCamera() {
@@ -95,21 +94,15 @@ export default function QuoteScan({ quoteId }) {
         setCameraError("Could not access camera: " + err.message)
       }
     }
-
     startCamera()
-
-    return function () {
-      if (stream) stream.getTracks().forEach(function (t) { t.stop() })
-    }
-  }, [])
+    return function () { if (stream) stream.getTracks().forEach(function (t) { t.stop() }) }
+  }, [mode])
 
   useEffect(() => {
-    if (!autoScanning) return
-    const interval = setInterval(function () {
-      checkStabilityTick()
-    }, STABILITY_CHECK_MS)
+    if (!autoScanning || mode !== "scan") return
+    const interval = setInterval(function () { checkStabilityTick() }, STABILITY_CHECK_MS)
     return function () { clearInterval(interval) }
-  }, [autoScanning, addedItems])
+  }, [autoScanning, addedItems, mode])
 
   async function refreshItems() {
     const items = await getQuoteItems(quoteId)
@@ -209,7 +202,25 @@ export default function QuoteScan({ quoteId }) {
     refreshItems()
   }
 
-  const shareUrl = typeof window !== "undefined" ? window.location.href : ""
+  async function handleSubmitQuote() {
+    setSubmitting(true)
+    await submitQuoteSession(quoteId)
+    setSubmitting(false)
+    setSubmitted(true)
+  }
+
+  if (submitted) {
+    return (
+      <div style={{ minHeight: "100vh", backgroundColor: "#0d0d0d", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div style={{ textAlign: "center", maxWidth: 400 }}>
+          <h1 style={{ color: "#F2B705", fontSize: 22, fontWeight: 900, marginBottom: 12 }}>Quote Submitted!</h1>
+          <p style={{ color: "#9ca3af", fontSize: 14 }}>
+            Thanks - we've received your {addedItems.length} card(s). Someone will review your quote shortly.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#0d0d0d", padding: "24px 16px" }}>
@@ -217,50 +228,74 @@ export default function QuoteScan({ quoteId }) {
         <h1 style={{ color: "#ffffff", fontSize: 24, fontWeight: 900, marginBottom: 4 }}>
           <span style={{ color: "#F2B705" }}>RMT</span>rading Cards - Get a Quote
         </h1>
-        <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 8 }}>
-          Hold each card flat and steady, filling most of the frame. It's added automatically once it holds still.
-        </p>
 
-        {cameraError ? (
-          <p style={{ color: "#f87171", marginBottom: 20 }}>{cameraError}</p>
-        ) : (
-          <div style={{ position: "relative", marginBottom: 8 }}>
-            <video ref={videoRef} style={{ width: "100%", borderRadius: 10, border: "2px solid #F2B705" }} muted playsInline />
-            <canvas ref={canvasRef} style={{ display: "none" }} />
-            <canvas ref={smallCanvasRef} style={{ display: "none" }} />
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <button
+            onClick={function () { setMode("scan") }}
+            style={{ backgroundColor: mode === "scan" ? "#F2B705" : "#141414", color: mode === "scan" ? "#000" : "#ffffff", border: "1px solid #2a2a2a", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
+            Scan Cards
+          </button>
+          <button
+            onClick={function () { setMode("csv") }}
+            style={{ backgroundColor: mode === "csv" ? "#F2B705" : "#141414", color: mode === "csv" ? "#000" : "#ffffff", border: "1px solid #2a2a2a", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
+            Import CSV
+          </button>
+        </div>
 
-            <div style={{ position: "absolute", top: 10, left: 10, right: 10, backgroundColor: "rgba(0,0,0,0.7)", color: "#F2B705", padding: "6px 10px", borderRadius: 8, fontSize: 13, fontWeight: 600, textAlign: "center" }}>
-              {stabilityHint}
-            </div>
-
-            {toast && (
-              <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, backgroundColor: "rgba(0,0,0,0.8)", color: "#F2B705", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontWeight: 600, textAlign: "center" }}>
-                {toast}
-              </div>
-            )}
+        {mode === "csv" && (
+          <div style={{ marginBottom: 24 }}>
+            <QuoteCsvImport quoteId={quoteId} onImported={function () { setMode("scan"); refreshItems() }} />
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          <button
-            onClick={function () { setAutoScanning(!autoScanning) }}
-            style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 6, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}
-          >
-            {autoScanning ? "Pause Scanning" : "Resume Scanning"}
-          </button>
-          <button
-            onClick={function () {
-              if (!busyRef.current) {
-                readyToScanRef.current = false
-                setStabilityHint("Reading...")
-                runScan()
-              }
-            }}
-            style={{ backgroundColor: "#F2B705", border: "none", color: "#000", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-          >
-            Scan Now
-          </button>
-        </div>
+        {mode === "scan" && (
+          <>
+            <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 8 }}>
+              Hold each card flat and steady, filling most of the frame. It's added automatically once it holds still.
+            </p>
+
+            {cameraError ? (
+              <p style={{ color: "#f87171", marginBottom: 20 }}>{cameraError}</p>
+            ) : (
+              <div style={{ position: "relative", marginBottom: 8 }}>
+                <video ref={videoRef} style={{ width: "100%", borderRadius: 10, border: "2px solid #F2B705" }} muted playsInline />
+                <canvas ref={canvasRef} style={{ display: "none" }} />
+                <canvas ref={smallCanvasRef} style={{ display: "none" }} />
+                <div style={{ position: "absolute", top: 10, left: 10, right: 10, backgroundColor: "rgba(0,0,0,0.7)", color: "#F2B705", padding: "6px 10px", borderRadius: 8, fontSize: 13, fontWeight: 600, textAlign: "center" }}>
+                  {stabilityHint}
+                </div>
+                {toast && (
+                  <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, backgroundColor: "rgba(0,0,0,0.8)", color: "#F2B705", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontWeight: 600, textAlign: "center" }}>
+                    {toast}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+              <button
+                onClick={function () { setAutoScanning(!autoScanning) }}
+                style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 6, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}
+              >
+                {autoScanning ? "Pause Scanning" : "Resume Scanning"}
+              </button>
+              <button
+                onClick={function () {
+                  if (!busyRef.current) {
+                    readyToScanRef.current = false
+                    setStabilityHint("Reading...")
+                    runScan()
+                  }
+                }}
+                style={{ backgroundColor: "#F2B705", border: "none", color: "#000", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Scan Now
+              </button>
+            </div>
+          </>
+        )}
 
         <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 16, marginBottom: 20 }}>
           <h2 style={{ color: "#ffffff", fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
@@ -275,15 +310,9 @@ export default function QuoteScan({ quoteId }) {
                   <div key={item.id} style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 6, padding: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
                       {item.cards?.image_small && (
-                        <img
-                          src={item.cards.image_small}
-                          alt={item.cards.name}
-                          style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 4, flexShrink: 0 }}
-                        />
+                        <img src={item.cards.image_small} alt={item.cards.name} style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />
                       )}
-                      <div style={{ color: "#ffffff", fontSize: 13 }}>
-                        {item.cards?.name}
-                      </div>
+                      <div style={{ color: "#ffffff", fontSize: 13 }}>{item.cards?.name}</div>
                     </div>
                     <select
                       value={item.quantity}
@@ -309,23 +338,13 @@ export default function QuoteScan({ quoteId }) {
 
         {addedItems.length > 0 && (
           <div style={{ textAlign: "center" }}>
-            {!showQr ? (
-              <button
-                onClick={function () { setAutoScanning(false); setShowQr(true) }}
-                style={{ backgroundColor: "#F2B705", color: "#000", fontWeight: 700, borderRadius: 8, padding: "12px 24px", fontSize: 15, border: "none", cursor: "pointer" }}
-              >
-                Done Scanning - Show My QR Code
-              </button>
-            ) : (
-              <div style={{ backgroundColor: "#141414", border: "1px solid #F2B705", borderRadius: 10, padding: 20, display: "inline-block" }}>
-                <p style={{ color: "#ffffff", fontSize: 14, marginBottom: 12 }}>Show this to us</p>
-                <img
-                  src={"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(shareUrl)}
-                  alt="QR code"
-                  style={{ borderRadius: 6, backgroundColor: "#ffffff", padding: 8 }}
-                />
-              </div>
-            )}
+            <button
+              onClick={handleSubmitQuote}
+              disabled={submitting}
+              style={{ backgroundColor: "#F2B705", color: "#000", fontWeight: 700, borderRadius: 8, padding: "12px 24px", fontSize: 15, border: "none", cursor: submitting ? "default" : "pointer" }}
+            >
+              {submitting ? "Submitting..." : "Submit Quote"}
+            </button>
           </div>
         )}
       </div>

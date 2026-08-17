@@ -5,7 +5,7 @@ import AddCardsSearch from "./AddCardsSearch"
 import AddSealedSearch from "./AddSealedSearch"
 import ManualAddCard from "./ManualAddCard"
 import ScanCard from "./ScanCard"
-import ImportQuote from "./ImportQuote"
+import RecentQuotes from "./RecentQuotes"
 import CollectionSelector from "./CollectionSelector"
 import PriceHistoryModal from "./PriceHistoryModal"
 import EbaySoldButton from "./EbaySoldButton"
@@ -686,7 +686,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
         <button className={"rmt-tab" + (tab === "sealed" ? " rmt-tab-active" : "")} onClick={() => setTab("sealed")} style={tabButtonBase}>Add Sealed</button>
         <button className={"rmt-tab" + (tab === "manual" ? " rmt-tab-active" : "")} onClick={() => setTab("manual")} style={tabButtonBase}>Manual Add Card</button>
         <button className={"rmt-tab" + (tab === "scan" ? " rmt-tab-active" : "")} onClick={() => setTab("scan")} style={tabButtonBase}>Scan Card</button>
-        <button className={"rmt-tab" + (tab === "import-quote" ? " rmt-tab-active" : "")} onClick={() => setTab("import-quote")} style={tabButtonBase}>Import Quote</button>
+        <button className={"rmt-tab" + (tab === "import-quote" ? " rmt-tab-active" : "")} onClick={() => setTab("import-quote")} style={tabButtonBase}>View Recent Quotes</button>
       </div>
 
       {tab === "collection" && (
@@ -1025,7 +1025,7 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
       {tab === "sealed" && <AddSealedSearch collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
       {tab === "manual" && <ManualAddCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
       {tab === "scan" && <ScanCard collectionId={addTargetCollectionId} onAdded={() => setTab("collection")} />}
-      {tab === "import-quote" && <ImportQuote onImported={() => setTab("collection")} />}
+      {tab === "import-quote" && <RecentQuotes />}
 
       {historyModal && (
         <PriceHistoryModal
