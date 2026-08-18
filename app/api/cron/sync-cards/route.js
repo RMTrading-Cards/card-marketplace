@@ -223,9 +223,12 @@ export async function GET(request) {
 
       if (!setFailed && historyRows.length > 0) {
         for (const batch of chunk(historyRows, 500)) {
-          await supabase
+          const { error: historyError } = await supabase
             .from("card_price_history")
             .upsert(batch, { onConflict: "card_id,variant,recorded_at" })
+          if (historyError) {
+            errors.push(label + " history upsert: " + historyError.message)
+          }
         }
       }
 
