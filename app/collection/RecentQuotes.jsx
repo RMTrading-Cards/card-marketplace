@@ -202,7 +202,7 @@ export default function RecentQuotes() {
     setItems(editable)
     setSearchQuery("")
     setSortBy("price_desc")
-    setOfferPercent(80)
+    setOfferPercent(70)
     setCollectionName("Quote " + new Date(quote.submitted_at || quote.created_at).toLocaleDateString() + " #" + quote.id.slice(-4).toUpperCase())
     setOpenQuoteId(quote.id)
   }
