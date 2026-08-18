@@ -68,10 +68,14 @@ export default function ProfileMenu({ email, username, isAdmin }) {
     const maxIterations = 40
 
     try {
+      let allSkipped = []
       while (iterations < maxIterations) {
         const result = await refreshCardsData()
         iterations++
         totalSynced += result.cardsSynced ?? 0
+        if (result.setsSkipped && result.setsSkipped.length > 0) {
+          allSkipped = allSkipped.concat(result.setsSkipped)
+        }
         const totalSets = result.totalSets || 732
         const pct = Math.round((result.nextIndex / totalSets) * 100)
         setCardsProgress(pct)
@@ -80,7 +84,10 @@ export default function ProfileMenu({ email, username, isAdmin }) {
         if (result.nextIndex === 0) break
       }
       setCardsProgress(100)
-      setRefreshResult(`Full cards sync complete — ${totalSynced} cards processed across ${iterations} batch(es). Reloading...`)
+      const skippedNote = allSkipped.length > 0
+        ? ` Skipped this pass: ${allSkipped.slice(0, 5).join("; ")}${allSkipped.length > 5 ? ` (+${allSkipped.length - 5} more)` : ""}`
+        : ""
+      setRefreshResult(`Full cards sync complete — ${totalSynced} cards processed across ${iterations} batch(es).${skippedNote} Reloading...`)
       const status = await getSyncStatus()
       setSyncStatus(status)
       setTimeout(() => window.location.reload(), 1500)

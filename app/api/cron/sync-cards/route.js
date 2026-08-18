@@ -128,11 +128,16 @@ export async function GET(request) {
     const set = allSets[index]
     const label = set.region + ":" + set.setName
 
-    const [cardsJson, pricingJson, skusJson] = await Promise.all([
+    let [cardsJson, pricingJson, skusJson] = await Promise.all([
       fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/cards`),
       fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/pricing`),
       fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/skus`),
     ])
+
+    if (!pricingJson?.prices) {
+      // Retry once — many failures here are transient network blips, not permanent issues with the set itself.
+      pricingJson = await fetchJSON(`${BASE}/${set.category}/sets/${set.setId}/pricing`)
+    }
 
     const products = cardsJson?.products || []
 
