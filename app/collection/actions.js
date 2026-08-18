@@ -884,12 +884,15 @@ export async function getSyncStatus() {
 
 export async function getCardPriceHistory(cardId, variant, range) {
   const supabase = await createClient()
-  const now = new Date()
-  const fromDate = new Date(now)
+  const today = new Date()
+  const todayDateOnly = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()))
 
-  if (range === "week") fromDate.setDate(fromDate.getDate() - 7)
-  else if (range === "month") fromDate.setMonth(fromDate.getMonth() - 1)
-  else fromDate.setFullYear(fromDate.getFullYear() - 1)
+  let daysBack = 365
+  if (range === "week") daysBack = 7
+  else if (range === "month") daysBack = 30
+
+  const fromDate = new Date(todayDateOnly)
+  fromDate.setUTCDate(fromDate.getUTCDate() - daysBack)
 
   const { data, error } = await supabase
     .from("card_price_history")
