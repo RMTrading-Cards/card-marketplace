@@ -1171,9 +1171,17 @@ export async function scanCardImage(base64Data) {
 
   let candidates = []
   if (name && !detectedNonLatin) {
-    const searchQuery = cardNumber ? name + " " + cardNumber : name
-    const searchResult = await searchCards(searchQuery, "name", 1, 6)
-    candidates = searchResult.results || []
+    const searchQuery = row.cardNumber ? name + " " + row.cardNumber : name
+    const searchResult = await searchCards(searchQuery, "name", 1, 10, row.regionHint || null)
+    const candidates = searchResult.results || []
+
+    if (name === "Meowth" || name === "Eevee") {
+      console.log("CSV DEBUG:", JSON.stringify({
+        name, cardNumber: row.cardNumber, setName: row.setName,
+        searchQuery, candidateCount: candidates.length,
+        candidates: candidates.map(function (c) { return c.name + " | " + c.card_number + " | " + c.set_name }),
+      }))
+    }
   }
 
   let effectiveVisualMatches = visualMatchesResult
