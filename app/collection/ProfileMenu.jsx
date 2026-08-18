@@ -72,6 +72,7 @@ export default function ProfileMenu({ email, username, isAdmin }) {
       while (iterations < maxIterations) {
         const result = await refreshCardsData()
         iterations++
+        await new Promise(function (resolve) { setTimeout(resolve, 1500) })
         totalSynced += result.cardsSynced ?? 0
         if (result.setsSkipped && result.setsSkipped.length > 0) {
           allSkipped = allSkipped.concat(result.setsSkipped)
@@ -79,7 +80,7 @@ export default function ProfileMenu({ email, username, isAdmin }) {
         const totalSets = result.totalSets || 732
         const pct = Math.round((result.nextIndex / totalSets) * 100)
         setCardsProgress(pct)
-        setRefreshResult(`Synced ${totalSynced} cards so far — batch ${iterations}, position ${result.nextIndex}/${totalSets}`)
+        setRefreshResult(`Processed ${totalSynced} card updates so far — batch ${iterations}, position ${result.nextIndex}/${totalSets} (database currently has ~59,700 total cards; this counts every price refresh, not distinct new cards)`)
 
         if (result.nextIndex === 0) break
       }
