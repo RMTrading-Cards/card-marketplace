@@ -1171,18 +1171,9 @@ export async function scanCardImage(base64Data) {
 
   let candidates = []
   if (name && !detectedNonLatin) {
-    const numericPortion = row.cardNumber ? (row.cardNumber.match(/\d+/) || [])[0] : null
-    const searchQuery = numericPortion ? name + " " + numericPortion : name
-    const searchResult = await searchCards(searchQuery, "name", 1, 30, row.regionHint || null)
-    const candidates = searchResult.results || []
-
-    if (name === "Meowth" || name === "Eevee") {
-      console.log("CSV DEBUG:", JSON.stringify({
-        name, cardNumber: row.cardNumber, setName: row.setName,
-        searchQuery, candidateCount: candidates.length,
-        candidates: candidates.map(function (c) { return c.name + " | " + c.card_number + " | " + c.set_name }),
-      }))
-    }
+    const searchQuery = cardNumber ? name + " " + cardNumber : name
+    const searchResult = await searchCards(searchQuery, "name", 1, 6)
+    candidates = searchResult.results || []
   }
 
   let effectiveVisualMatches = visualMatchesResult
@@ -1605,8 +1596,9 @@ export async function importCsvRowsToQuote(quoteSessionId, rows) {
       continue
     }
 
-    const searchQuery = row.cardNumber ? name + " " + row.cardNumber : name
-    const searchResult = await searchCards(searchQuery, "name", 1, 10, row.regionHint || null)
+    const numericPortion = row.cardNumber ? (row.cardNumber.match(/\d+/) || [])[0] : null
+    const searchQuery = numericPortion ? name + " " + numericPortion : name
+    const searchResult = await searchCards(searchQuery, "name", 1, 30, row.regionHint || null)
     const candidates = searchResult.results || []
 
     const nameLower = name.toLowerCase().trim()
