@@ -170,9 +170,10 @@ export default function QuoteCsvImport(props) {
           {unmatchedCount > 0 && (
             <div style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12, marginBottom: 12, maxHeight: 200, overflowY: "auto" }}>
               {results.filter(function (r) { return !r.matched }).map(function (r, i) {
+                const details = [r.row.setName, r.row.cardNumber].filter(Boolean).join(" ")
                 return (
                   <div key={i} style={{ color: "#f87171", fontSize: 12, marginBottom: 4 }}>
-                    {r.row.name} - {r.reason}
+                    {r.row.name}{details ? " (" + details + ")" : ""} - {r.reason}
                   </div>
                 )
               })}

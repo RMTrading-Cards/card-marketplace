@@ -1171,7 +1171,8 @@ export async function scanCardImage(base64Data) {
 
   let candidates = []
   if (name && !detectedNonLatin) {
-    const searchQuery = row.cardNumber ? name + " " + row.cardNumber : name
+    const numericPortion = row.cardNumber ? (row.cardNumber.match(/\d+/) || [])[0] : null
+    const searchQuery = numericPortion ? name + " " + numericPortion : name
     const searchResult = await searchCards(searchQuery, "name", 1, 10, row.regionHint || null)
     const candidates = searchResult.results || []
 
