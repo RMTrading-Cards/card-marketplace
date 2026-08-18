@@ -249,7 +249,7 @@ export async function GET(request) {
     errors,
     cardsSynced,
     duplicatesSkipped,
-    nextIndex: index,
+    nextIndex: index >= allSets.length ? 0 : index,
     totalSets: allSets.length,
     passesCompleted,
     elapsedMs: Date.now() - startTime,
