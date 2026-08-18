@@ -1642,7 +1642,15 @@ export async function importCsvRowsToQuote(quoteSessionId, rows) {
     }
 
     if (!match) {
-      results.push({ row, matched: false, reason: "No matching card found" })
+      results.push({
+        row,
+        matched: false,
+        reason: "No matching card found",
+        debugQuery: searchQuery,
+        debugCandidates: candidates.map(function (c) {
+          return c.name + " | " + c.card_number + " | " + c.set_name
+        }),
+      })
       continue
     }
 

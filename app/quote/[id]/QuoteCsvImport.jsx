@@ -168,12 +168,26 @@ export default function QuoteCsvImport(props) {
             Matched {matchedCount} card(s){unmatchedCount > 0 ? ", " + unmatchedCount + " could not be matched" : ""}.
           </p>
           {unmatchedCount > 0 && (
-            <div style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12, marginBottom: 12, maxHeight: 200, overflowY: "auto" }}>
+            <div style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12, marginBottom: 12, maxHeight: 300, overflowY: "auto" }}>
               {results.filter(function (r) { return !r.matched }).map(function (r, i) {
                 const details = [r.row.setName, r.row.cardNumber].filter(Boolean).join(" ")
                 return (
-                  <div key={i} style={{ color: "#f87171", fontSize: 12, marginBottom: 4 }}>
-                    {r.row.name}{details ? " (" + details + ")" : ""} - {r.reason}
+                  <div key={i} style={{ marginBottom: 10, borderBottom: "1px solid #2a2a2a", paddingBottom: 8 }}>
+                    <div style={{ color: "#f87171", fontSize: 12 }}>
+                      {r.row.name}{details ? " (" + details + ")" : ""} - {r.reason}
+                    </div>
+                    {r.debugQuery && (
+                      <div style={{ color: "#9ca3af", fontSize: 10, marginTop: 2 }}>
+                        Query: "{r.debugQuery}" — {r.debugCandidates.length} candidate(s) found
+                        {r.debugCandidates.length > 0 && (
+                          <div style={{ marginLeft: 8 }}>
+                            {r.debugCandidates.map(function (c, ci) {
+                              return <div key={ci}>{c}</div>
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
