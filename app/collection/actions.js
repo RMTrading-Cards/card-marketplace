@@ -1610,10 +1610,15 @@ export async function importCsvRowsToQuote(quoteSessionId, rows) {
     let match = null
     const targetNum = normalizeCsvNumber(row.cardNumber)
 
+    function normalizeApostrophes(str) {
+      return (str || "").replace(/[\u2019\u2018]/g, "'")
+    }
+
     if (row.setName) {
-      const setLower = row.setName.toLowerCase()
+      const setLower = normalizeApostrophes(row.setName.toLowerCase())
       match = candidates.find(function (c) {
-        return nameMatches(c.name) && c.set_name && c.set_name.toLowerCase().indexOf(setLower) !== -1
+        const candidateSet = normalizeApostrophes((c.set_name || "").toLowerCase())
+        return nameMatches(c.name) && candidateSet.indexOf(setLower) !== -1
       })
     }
     if (!match && targetNum != null) {

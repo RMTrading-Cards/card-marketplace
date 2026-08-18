@@ -1,5 +1,6 @@
 ﻿"use client"
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { quickScanCard, addItemToQuote, getQuoteItems, removeQuoteItem, incrementQuoteItemQuantity, submitQuoteSession } from "../../collection/actions"
 import QuoteCsvImport from "./QuoteCsvImport"
 
@@ -59,6 +60,7 @@ function averageDiff(a, b) {
 }
 
 export default function QuoteScan({ quoteId }) {
+  const router = useRouter()
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const smallCanvasRef = useRef(null)
@@ -208,6 +210,7 @@ export default function QuoteScan({ quoteId }) {
     await submitQuoteSession(quoteId, quoteName.trim())
     setSubmitting(false)
     setSubmitted(true)
+    setTimeout(function () { router.push("/login") }, 4000)
   }
 
   if (submitted) {
@@ -215,9 +218,15 @@ export default function QuoteScan({ quoteId }) {
       <div style={{ minHeight: "100vh", backgroundColor: "#0d0d0d", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
         <div style={{ textAlign: "center", maxWidth: 400 }}>
           <h1 style={{ color: "#F2B705", fontSize: 22, fontWeight: 900, marginBottom: 12 }}>Quote Submitted!</h1>
-          <p style={{ color: "#9ca3af", fontSize: 14 }}>
+          <p style={{ color: "#9ca3af", fontSize: 14, marginBottom: 20 }}>
             Thanks - we've received your {addedItems.length} card(s). Someone will review your quote shortly.
           </p>
+          <button
+            onClick={function () { router.push("/login") }}
+            style={{ backgroundColor: "#F2B705", color: "#000", fontWeight: 700, borderRadius: 8, padding: "10px 20px", fontSize: 14, border: "none", cursor: "pointer" }}
+          >
+            Return to Home
+          </button>
         </div>
       </div>
     )
