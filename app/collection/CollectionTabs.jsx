@@ -215,37 +215,26 @@ function formatPriceShort(n) {
   return n == null ? "N/A" : "$" + n.toFixed(2)
 }
 
-function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate, onRangeUpdate }) {
+function ConditionEditor({ id, condition, card, variant, onPriceUpdate, onRangeUpdate }) {
   const [value, setValue] = useState(condition)
   const [submitting, setSubmitting] = useState(false)
-  const [priceMap, setPriceMap] = useState(null)
 
   useEffect(() => {
     setValue(condition)
   }, [condition])
 
-  useEffect(() => {
-    let cancelled = false
-    if (cardId) {
-      getCardAllConditionPrices(cardId, variant).then(function (map) {
-        if (!cancelled) setPriceMap(map)
-      })
-      getCardConditionRange(cardId, variant, condition).then(function (range) {
-        if (!cancelled) onRangeUpdate?.(id, range)
-      })
-    }
-    return function () { cancelled = true }
-  }, [cardId, variant])
+  const priceMap = {}
+  for (const c of CONDITIONS) {
+    priceMap[c] = getConditionPriceRange(card, variant, c).market
+  }
 
   useEffect(() => {
-    let cancelled = false
-    if (cardId) {
-      getCardConditionRange(cardId, variant, value).then(function (range) {
-        if (!cancelled) onRangeUpdate?.(id, range)
-      })
+    const range = getConditionPriceRange(card, variant, value)
+    onRangeUpdate?.(id, range)
+    if (range.market != null) {
+      onPriceUpdate?.(id, range.market)
     }
-    return function () { cancelled = true }
-  }, [value])
+  }, [value, card, variant])
 
   async function handleChange(e) {
     const newCondition = e.target.value
@@ -255,13 +244,6 @@ function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate, onRang
     formData.set("id", id)
     formData.set("condition", newCondition)
     await updateItemCondition(formData)
-
-    if (priceMap && priceMap[newCondition] != null) {
-      onPriceUpdate?.(id, priceMap[newCondition])
-    } else if (cardId) {
-      const newPrice = await getCardConditionPrice(cardId, variant, newCondition)
-      onPriceUpdate?.(id, newPrice)
-    }
     setSubmitting(false)
   }
 
@@ -281,13 +263,12 @@ function ConditionEditor({ id, condition, cardId, variant, onPriceUpdate, onRang
     >
       {CONDITIONS.map((c) => (
         <option key={c} value={c}>
-          {priceMap ? c + ": " + formatPriceShort(priceMap[c]) : c}
+          {c + ": " + formatPriceShort(priceMap[c])}
         </option>
       ))}
     </select>
   )
 }
-
 function QuantityEditor({ id, itemType, quantity }) {
   const router = useRouter()
   const [value, setValue] = useState(quantity)
@@ -858,15 +839,15 @@ export default function CollectionTabs({ myCards, mySealed, collections, mainCol
 
                       {market != null ? (
                         <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
+                          {rangeOverrides[row.id] && rangeOverrides[row.id].low != null && (
+                            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 2 }}>
+                              Lowest Listing: {formatPrice(rangeOverrides[row.id].low)}
+                            </div>
+                          )}
                           <ThresholdRow label="85%" value={market * 0.85} purchasePrice={purchasePrice} />
                           <ThresholdRow label="90%" value={market * 0.9} purchasePrice={purchasePrice} />
                           <ThresholdRow label="95%" value={market * 0.95} purchasePrice={purchasePrice} />
                           <ThresholdRow label="eBay Payout (~87%)" value={payout} purchasePrice={purchasePrice} />
-                          {rangeOverrides[row.id] && (rangeOverrides[row.id].low != null || rangeOverrides[row.id].high != null) && (
-                            <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
-                              Range: {formatPrice(rangeOverrides[row.id].low)} - {formatPrice(rangeOverrides[row.id].high)}
-                            </div>
-                          )}
                           <ThresholdRow label={"Market (" + row.condition + ")"} value={market} purchasePrice={purchasePrice} big />
                         </div>
                       ) : (

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { listRecentQuotes, getQuoteItems, importQuoteAsCollection } from "./actions"
+import { getVariantPrice, getConditionPriceRange } from "@/lib/pricing"
 
 const inputStyle = {
   backgroundColor: "#0d0d0d",
@@ -13,8 +14,22 @@ const inputStyle = {
   boxSizing: "border-box",
 }
 
+const controlStyle = {
+  backgroundColor: "#141414",
+  border: "1px solid #2a2a2a",
+  color: "#ffffff",
+  borderRadius: 8,
+  padding: "10px 14px",
+  fontSize: 16,
+  boxSizing: "border-box",
+}
+
+const statBox = { backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 20px", minWidth: 160 }
+
 const GRADE_OPTIONS = []
 for (let g = 10; g >= 1; g -= 0.5) GRADE_OPTIONS.push(g.toFixed(1))
+
+const CONDITIONS = ["NM", "LP", "MP", "HP", "DMG"]
 
 const EBAY_FVF_RATE = 0.1325
 const EBAY_PER_ORDER_FEE = 0.40
@@ -28,8 +43,6 @@ function ebayPayout(value) {
   return Math.max(0, value * (1 - EBAY_FVF_RATE) - EBAY_PER_ORDER_FEE)
 }
 
-import { getVariantPrice, getConditionPriceRange } from "@/lib/pricing"
-
 function getVariants(card) {
   const variants = []
   if (card.price_normal != null) variants.push("Normal")
@@ -38,6 +51,11 @@ function getVariants(card) {
   if (card.price_1st_edition_holofoil != null) variants.push("1st Edition Holofoil")
   if (variants.length === 0) variants.push("Standard")
   return variants
+}
+
+function itemMarketValue(item) {
+  if (item.isGraded) return getVariantPrice(item.cards, item.variant)
+  return getConditionPriceRange(item.cards, item.variant, item.condition).market
 }
 
 function EditableItem(props) {
@@ -50,6 +68,11 @@ function EditableItem(props) {
     : getConditionPriceRange(card, item.variant, item.condition)
   const market = priceRange.market
   const payout = ebayPayout(market)
+
+  const conditionPriceMap = {}
+  for (const c of CONDITIONS) {
+    conditionPriceMap[c] = getConditionPriceRange(card, item.variant, c).market
+  }
 
   return (
     <div style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -102,19 +125,17 @@ function EditableItem(props) {
           </div>
         ) : (
           <select value={item.condition} onChange={function (e) { onChange({ condition: e.target.value }) }} style={{ ...inputStyle, marginTop: 6 }}>
-            <option value="NM">Near Mint</option>
-            <option value="LP">Lightly Played</option>
-            <option value="MP">Moderately Played</option>
-            <option value="HP">Heavily Played</option>
-            <option value="DMG">Damaged</option>
+            {CONDITIONS.map(function (c) {
+              return <option key={c} value={c}>{c + ": " + formatPrice(conditionPriceMap[c])}</option>
+            })}
           </select>
         )}
 
         {market != null ? (
           <div style={{ maxWidth: 260, display: "flex", flexDirection: "column", gap: 2, marginTop: 10 }}>
-            {(priceRange.low != null || priceRange.high != null) && (
+            {priceRange.low != null && (
               <div style={{ fontSize: 12, color: "#9ca3af" }}>
-                Range: {formatPrice(priceRange.low)} - {formatPrice(priceRange.high)}
+                Lowest Listing: {formatPrice(priceRange.low)}
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#d1d5db" }}>
@@ -150,6 +171,9 @@ export default function RecentQuotes() {
   const [collectionName, setCollectionName] = useState("")
   const [importing, setImporting] = useState(false)
   const [importedIds, setImportedIds] = useState({})
+  const [searchQuery, setSearchQuery] = useState("")
+  const [sortBy, setSortBy] = useState("price_desc")
+  const [offerPercent, setOfferPercent] = useState(80)
 
   useEffect(() => { refreshQuotes() }, [])
 
@@ -176,15 +200,18 @@ export default function RecentQuotes() {
       }
     })
     setItems(editable)
+    setSearchQuery("")
+    setSortBy("price_desc")
+    setOfferPercent(80)
     setCollectionName("Quote " + new Date(quote.submitted_at || quote.created_at).toLocaleDateString() + " #" + quote.id.slice(-4).toUpperCase())
     setOpenQuoteId(quote.id)
   }
 
-  function updateItem(index, changes) {
+  function updateItem(itemId, changes) {
     setItems(function (prev) {
-      const next = prev.slice()
-      next[index] = Object.assign({}, next[index], changes)
-      return next
+      return prev.map(function (it) {
+        return it.itemId === itemId ? Object.assign({}, it, changes) : it
+      })
     })
   }
 
@@ -207,6 +234,29 @@ export default function RecentQuotes() {
     router.refresh()
   }
 
+  const totalMarketValue = items.reduce(function (sum, item) {
+    const m = itemMarketValue(item)
+    return sum + (m || 0) * item.quantity
+  }, 0)
+
+  const offerAmount = totalMarketValue * (offerPercent / 100)
+  const unrealizedProfit = totalMarketValue - offerAmount
+
+  const filteredSortedItems = items
+    .filter(function (item) {
+      if (!searchQuery.trim()) return true
+      const name = (item.cards?.name || "").toLowerCase()
+      return name.indexOf(searchQuery.toLowerCase()) !== -1
+    })
+    .slice()
+    .sort(function (a, b) {
+      if (sortBy === "name") return (a.cards?.name || "").localeCompare(b.cards?.name || "")
+      const priceA = itemMarketValue(a) || 0
+      const priceB = itemMarketValue(b) || 0
+      if (sortBy === "price_asc") return priceA - priceB
+      return priceB - priceA
+    })
+
   if (openQuoteId) {
     return (
       <div style={{ maxWidth: 700 }}>
@@ -217,34 +267,78 @@ export default function RecentQuotes() {
           Back to Quotes
         </button>
 
-        <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 4 }}>
+        <h2 style={{ color: "#ffffff", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
           Review Quote ({items.length} items)
         </h2>
-        <p style={{ color: "#F2B705", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-          Total Market Value: {formatPrice(items.reduce(function (sum, item) {
-            const m = item.isGraded ? getVariantPrice(item.cards, item.variant) : getConditionPriceRange(item.cards, item.variant, item.condition).market
-            return sum + (m || 0) * item.quantity
-          }, 0))}
-        </p>
+
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+          <div style={statBox}>
+            <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>Total Market Value</div>
+            <div style={{ color: "#F2B705", fontSize: 20, fontWeight: 700 }}>{formatPrice(totalMarketValue)}</div>
+          </div>
+          <div style={{ ...statBox, minWidth: 220 }}>
+            <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>
+              Offer at {offerPercent}% of Market
+            </div>
+            <input
+              type="range"
+              min="50"
+              max="100"
+              value={offerPercent}
+              onChange={function (e) { setOfferPercent(Number(e.target.value)) }}
+              style={{ width: "100%", marginBottom: 4 }}
+            />
+            <div style={{ color: "#ffffff", fontSize: 18, fontWeight: 700 }}>{formatPrice(offerAmount)}</div>
+          </div>
+          <div style={statBox}>
+            <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>Unrealized Profit if Bought at {offerPercent}%</div>
+            <div style={{ color: "#4ade80", fontSize: 20, fontWeight: 700 }}>+{formatPrice(unrealizedProfit)}</div>
+          </div>
+        </div>
 
         <div style={{ marginBottom: 16 }}>
           <label style={{ color: "#9ca3af", fontSize: 12, display: "block", marginBottom: 4 }}>New collection name:</label>
           <input value={collectionName} onChange={function (e) { setCollectionName(e.target.value) }} style={{ ...inputStyle, width: "100%", fontSize: 16 }} />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-          {items.map(function (item, i) {
-            return <EditableItem key={item.itemId} item={item} onChange={function (changes) { updateItem(i, changes) }} />
-          })}
-        </div>
-
         <button
           onClick={handleImport}
           disabled={importing || items.length === 0}
-          style={{ width: "100%", backgroundColor: "#F2B705", color: "#000", fontWeight: 700, borderRadius: 8, padding: "12px 20px", fontSize: 15, border: "none", cursor: importing ? "default" : "pointer" }}
+          style={{ width: "100%", backgroundColor: "#F2B705", color: "#000", fontWeight: 700, borderRadius: 8, padding: "12px 20px", fontSize: 15, border: "none", cursor: importing ? "default" : "pointer", marginBottom: 20 }}
         >
           {importing ? "Importing..." : "Import Quote Collection to My Collections"}
         </button>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+          <input
+            type="text"
+            placeholder="Search cards in this quote..."
+            value={searchQuery}
+            onChange={function (e) { setSearchQuery(e.target.value) }}
+            style={{ ...controlStyle, flex: 1, minWidth: 200 }}
+          />
+          <select value={sortBy} onChange={function (e) { setSortBy(e.target.value) }} style={controlStyle}>
+            <option value="price_desc">Price High to Low</option>
+            <option value="price_asc">Price Low to High</option>
+            <option value="name">Name A to Z</option>
+          </select>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+          {filteredSortedItems.length === 0 ? (
+            <p style={{ color: "#9ca3af", fontStyle: "italic" }}>No items match your search.</p>
+          ) : (
+            filteredSortedItems.map(function (item) {
+              return (
+                <EditableItem
+                  key={item.itemId}
+                  item={item}
+                  onChange={function (changes) { updateItem(item.itemId, changes) }}
+                />
+              )
+            })
+          )}
+        </div>
       </div>
     )
   }
