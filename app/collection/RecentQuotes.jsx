@@ -1,7 +1,7 @@
 ﻿"use client"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { listRecentQuotes, getQuoteItems, importQuoteAsCollection } from "./actions"
+import { listRecentQuotes, getQuoteItems, importQuoteAsCollection, deleteQuoteSession } from "./actions"
 import { getVariantPrice, getConditionPriceRange } from "@/lib/pricing"
 
 const inputStyle = {
@@ -203,7 +203,10 @@ export default function RecentQuotes() {
     setSearchQuery("")
     setSortBy("price_desc")
     setOfferPercent(70)
-    setCollectionName("Quote " + new Date(quote.submitted_at || quote.created_at).toLocaleDateString() + " #" + quote.id.slice(-4).toUpperCase())
+    const defaultName = quote.customer_name
+      ? quote.customer_name + " - " + new Date(quote.submitted_at || quote.created_at).toLocaleDateString()
+      : "Quote " + new Date(quote.submitted_at || quote.created_at).toLocaleDateString() + " #" + quote.id.slice(-4).toUpperCase()
+    setCollectionName(defaultName)
     setOpenQuoteId(quote.id)
   }
 
@@ -213,6 +216,13 @@ export default function RecentQuotes() {
         return it.itemId === itemId ? Object.assign({}, it, changes) : it
       })
     })
+  }
+
+  async function handleDelete(quoteId, e) {
+    e.stopPropagation()
+    if (!confirm("Delete this quote? This can't be undone.")) return
+    await deleteQuoteSession(quoteId)
+    refreshQuotes()
   }
 
   async function handleImport() {
@@ -360,21 +370,29 @@ export default function RecentQuotes() {
             return (
               <div key={quote.id} style={{ backgroundColor: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ color: "#ffffff", fontSize: 14 }}>
-                  <div>{quote.itemCount} item(s)</div>
+                  <div>{quote.customer_name ? quote.customer_name + " - " : ""}{quote.itemCount} item(s)</div>
                   <div style={{ color: "#9ca3af", fontSize: 12 }}>
                     Submitted {quote.submitted_at ? new Date(quote.submitted_at).toLocaleString() : "unknown"}
                   </div>
                 </div>
-                {isImported ? (
-                  <span style={{ color: "#4ade80", fontSize: 13, fontWeight: 600 }}>Imported</span>
-                ) : (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {isImported ? (
+                    <span style={{ color: "#4ade80", fontSize: 13, fontWeight: 600 }}>Imported</span>
+                  ) : (
+                    <button
+                      onClick={function () { handleOpen(quote) }}
+                      style={{ backgroundColor: "#F2B705", color: "#000", fontWeight: 600, borderRadius: 6, padding: "8px 16px", fontSize: 13, border: "none", cursor: "pointer" }}
+                    >
+                      Review & Import
+                    </button>
+                  )}
                   <button
-                    onClick={function () { handleOpen(quote) }}
-                    style={{ backgroundColor: "#F2B705", color: "#000", fontWeight: 600, borderRadius: 6, padding: "8px 16px", fontSize: 13, border: "none", cursor: "pointer" }}
+                    onClick={function (e) { handleDelete(quote.id, e) }}
+                    style={{ backgroundColor: "#2a1414", color: "#f87171", border: "none", borderRadius: 6, padding: "8px 12px", fontSize: 13, cursor: "pointer" }}
                   >
-                    Review & Import
+                    Delete
                   </button>
-                )}
+                </div>
               </div>
             )
           })}

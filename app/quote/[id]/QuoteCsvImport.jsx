@@ -13,7 +13,15 @@ function cleanCardName(rawName) {
     name = name.replace(/\s*\([^)]*\)\s*$/, "").trim()
   } while (name !== prev)
 
-  name = name.replace(/\s*-\s*\d+\s*$/, "").trim()
+  name = name.replace(/\s*-\s*\d+(\/[A-Za-z0-9-]+)?\s*$/, "").trim()
+
+  const basicEnergyTypes = ["Lightning", "Fire", "Water", "Grass", "Psychic", "Fighting", "Darkness", "Metal", "Fairy", "Dragon", "Colorless"]
+  const matchesBasicEnergy = basicEnergyTypes.some(function (type) {
+    return name.toLowerCase() === (type + " Energy").toLowerCase()
+  })
+  if (matchesBasicEnergy) {
+    name = "Basic " + name
+  }
 
   return { name, isJP }
 }

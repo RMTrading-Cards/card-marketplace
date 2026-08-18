@@ -1512,12 +1512,22 @@ export async function importQuoteAsCollection(quoteId, collectionName, items) {
   return newCollection.id
 }
 
-export async function submitQuoteSession(quoteId) {
+export async function submitQuoteSession(quoteId, customerName) {
   const supabase = await createClient()
   const { error } = await supabase
     .from("quote_sessions")
-    .update({ submitted: true, submitted_at: new Date().toISOString() })
+    .update({
+      submitted: true,
+      submitted_at: new Date().toISOString(),
+      customer_name: customerName || null,
+    })
     .eq("id", quoteId)
+  if (error) throw new Error(error.message)
+}
+
+export async function deleteQuoteSession(quoteId) {
+  const supabase = await createClient()
+  const { error } = await supabase.from("quote_sessions").delete().eq("id", quoteId)
   if (error) throw new Error(error.message)
 }
 

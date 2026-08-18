@@ -76,6 +76,7 @@ export default function QuoteScan({ quoteId }) {
   const [toast, setToast] = useState("")
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [quoteName, setQuoteName] = useState("")
 
   useEffect(() => { refreshItems() }, [])
 
@@ -204,7 +205,7 @@ export default function QuoteScan({ quoteId }) {
 
   async function handleSubmitQuote() {
     setSubmitting(true)
-    await submitQuoteSession(quoteId)
+    await submitQuoteSession(quoteId, quoteName.trim())
     setSubmitting(false)
     setSubmitted(true)
   }
@@ -338,6 +339,14 @@ export default function QuoteScan({ quoteId }) {
 
         {addedItems.length > 0 && (
           <div style={{ textAlign: "center" }}>
+            <input
+              type="text"
+              placeholder="Enter your name (optional)"
+              value={quoteName}
+              onChange={function (e) { setQuoteName(e.target.value) }}
+              style={{ backgroundColor: "#0d0d0d", border: "1px solid #2a2a2a", color: "#ffffff", borderRadius: 8, padding: "10px 14px", fontSize: 16, marginBottom: 12, width: "100%", maxWidth: 300, boxSizing: "border-box" }}
+            />
+            <br />
             <button
               onClick={handleSubmitQuote}
               disabled={submitting}
