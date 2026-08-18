@@ -178,6 +178,7 @@ export default function QuoteCsvImport(props) {
                     </div>
                     {r.debugQuery && (
                       <div style={{ color: "#9ca3af", fontSize: 10, marginTop: 2 }}>
+                        Raw cardNumber: {r.debugRawCardNumber} | Extracted: {r.debugNumericPortion}<br />
                         Query: "{r.debugQuery}" — {r.debugCandidates.length} candidate(s) found
                         {r.debugCandidates.length > 0 && (
                           <div style={{ marginLeft: 8 }}>

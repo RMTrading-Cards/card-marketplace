@@ -1173,7 +1173,8 @@ export async function scanCardImage(base64Data) {
   if (name && !detectedNonLatin) {
     const numericPortion = row.cardNumber ? (row.cardNumber.match(/\d+/) || [])[0] : null
     const searchQuery = numericPortion ? name + " " + numericPortion : name
-    const searchResult = await searchCards(searchQuery, "name", 1, 30, row.regionHint || null)
+    const cacheBuster = Date.now()
+    const searchResult = await searchCards(searchQuery + " ", "name", 1, 30, row.regionHint || null)
     const candidates = searchResult.results || []
 
     if (name === "Meowth" || name === "Eevee") {
@@ -1647,6 +1648,8 @@ export async function importCsvRowsToQuote(quoteSessionId, rows) {
         matched: false,
         reason: "No matching card found",
         debugQuery: searchQuery,
+        debugRawCardNumber: JSON.stringify(row.cardNumber),
+        debugNumericPortion: JSON.stringify(numericPortion),
         debugCandidates: candidates.map(function (c) {
           return c.name + " | " + c.card_number + " | " + c.set_name
         }),
