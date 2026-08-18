@@ -1173,7 +1173,7 @@ export async function scanCardImage(base64Data) {
   if (name && !detectedNonLatin) {
     const numericPortion = row.cardNumber ? (row.cardNumber.match(/\d+/) || [])[0] : null
     const searchQuery = numericPortion ? name + " " + numericPortion : name
-    const searchResult = await searchCards(searchQuery, "name", 1, 10, row.regionHint || null)
+    const searchResult = await searchCards(searchQuery, "name", 1, 30, row.regionHint || null)
     const candidates = searchResult.results || []
 
     if (name === "Meowth" || name === "Eevee") {
@@ -1627,7 +1627,9 @@ export async function importCsvRowsToQuote(quoteSessionId, rows) {
       const setLower = normalizeApostrophes(row.setName.toLowerCase())
       match = candidates.find(function (c) {
         const candidateSet = normalizeApostrophes((c.set_name || "").toLowerCase())
-        return nameMatches(c.name) && candidateSet.indexOf(setLower) !== -1
+        const setOk = candidateSet.indexOf(setLower) !== -1
+        const numOk = targetNum == null || normalizeCsvNumber(c.card_number) === targetNum
+        return nameMatches(c.name) && setOk && numOk
       })
     }
     if (!match && targetNum != null) {
