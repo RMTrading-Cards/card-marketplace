@@ -1173,8 +1173,7 @@ export async function scanCardImage(base64Data) {
   if (name && !detectedNonLatin) {
     const numericPortion = row.cardNumber ? (row.cardNumber.match(/\d+/) || [])[0] : null
     const searchQuery = numericPortion ? name + " " + numericPortion : name
-    const cacheBuster = Date.now()
-    const searchResult = await searchCards(searchQuery + " ", "name", 1, 30, row.regionHint || null)
+    const searchResult = await searchCards(searchQuery, "name", 1, 30, row.regionHint || null)
     const candidates = searchResult.results || []
 
     if (name === "Meowth" || name === "Eevee") {
