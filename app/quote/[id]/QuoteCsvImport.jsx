@@ -3,6 +3,21 @@ import { useState, useRef } from "react"
 import Papa from "papaparse"
 import { importCsvRowsToQuote } from "../../collection/actions"
 
+function cleanCardName(rawName) {
+  let name = (rawName || "").trim()
+  const isJP = /\(JP\)\s*$/i.test(name)
+
+  let prev
+  do {
+    prev = name
+    name = name.replace(/\s*\([^)]*\)\s*$/, "").trim()
+  } while (name !== prev)
+
+  name = name.replace(/\s*-\s*\d+\s*$/, "").trim()
+
+  return { name, isJP }
+}
+
 function findHeader(headers, candidates) {
   const lowerHeaders = headers.map(function (h) { return h.toLowerCase().trim() })
   for (const candidate of candidates) {
@@ -64,8 +79,10 @@ export default function QuoteCsvImport(props) {
               return !SEALED_KEYWORDS.some(function (kw) { return nameLower.indexOf(kw) !== -1 })
             })
             .map(function (r) {
+              const cleaned = cleanCardName(r[nameHeader])
               return {
-                name: (r[nameHeader] || "").trim(),
+                name: cleaned.name,
+                regionHint: cleaned.isJP ? "JP" : null,
                 setName: setHeader ? (r[setHeader] || "").trim() : null,
                 cardNumber: numberHeader ? (r[numberHeader] || "").trim() : null,
                 condition: conditionHeader ? r[conditionHeader] : null,

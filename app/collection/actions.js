@@ -1587,7 +1587,7 @@ export async function importCsvRowsToQuote(quoteSessionId, rows) {
     }
 
     const searchQuery = row.cardNumber ? name + " " + row.cardNumber : name
-    const searchResult = await searchCards(searchQuery, "name", 1, 10)
+    const searchResult = await searchCards(searchQuery, "name", 1, 10, row.regionHint || null)
     const candidates = searchResult.results || []
 
     const nameLower = name.toLowerCase().trim()
