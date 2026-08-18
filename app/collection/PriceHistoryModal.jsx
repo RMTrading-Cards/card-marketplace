@@ -143,6 +143,32 @@ export default function PriceHistoryModal(props) {
     return parts[1] + "/" + parts[2]
   }
 
+  const [hoverIndex, setHoverIndex] = useState(null)
+
+  function handleMouseMove(e) {
+    if (!chart || points.length === 0) return
+    const svg = e.currentTarget
+    const rect = svg.getBoundingClientRect()
+    const scaleX = W / rect.width
+    const localX = (e.clientX - rect.left) * scaleX
+
+    let closestIndex = 0
+    let closestDist = Infinity
+    for (let i = 0; i < points.length; i++) {
+      const px = chart.xFor(points[i].recorded_at)
+      const dist = Math.abs(px - localX)
+      if (dist < closestDist) {
+        closestDist = dist
+        closestIndex = i
+      }
+    }
+    setHoverIndex(closestIndex)
+  }
+
+  function handleMouseLeave() {
+    setHoverIndex(null)
+  }
+
   return (
     <div
       style={{
@@ -275,7 +301,17 @@ export default function PriceHistoryModal(props) {
               </span>
             </div>
 
-            <svg viewBox={"0 0 " + W + " " + H} style={{ width: "100%", height: "auto" }}>
+            <svg
+              viewBox={"0 0 " + W + " " + H}
+              style={{ width: "100%", height: "auto", cursor: "crosshair" }}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              onTouchMove={function (e) {
+                const touch = e.touches[0]
+                if (touch) handleMouseMove({ currentTarget: e.currentTarget, clientX: touch.clientX })
+              }}
+              onTouchEnd={handleMouseLeave}
+            >
               {[chart.max, chart.mid, chart.min].map((v, i) => {
                 const y = chart.yFor(v)
                 return (
@@ -314,12 +350,53 @@ export default function PriceHistoryModal(props) {
                   key={i}
                   cx={chart.xFor(p.recorded_at)}
                   cy={chart.yFor(p.price)}
-                  r="3.5"
+                  r={hoverIndex === i ? "5" : "3.5"}
                   fill="#F2B705"
-                >
-                  <title>{p.recorded_at + " - $" + p.price.toFixed(2)}</title>
-                </circle>
+                />
               ))}
+
+              {hoverIndex != null && points[hoverIndex] ? (
+                <g>
+                  <line
+                    x1={chart.xFor(points[hoverIndex].recorded_at)}
+                    y1={T}
+                    x2={chart.xFor(points[hoverIndex].recorded_at)}
+                    y2={B}
+                    stroke="#F2B705"
+                    strokeWidth="1"
+                    strokeDasharray="3,3"
+                    opacity="0.6"
+                  />
+                  {(function () {
+                    const hoverX = chart.xFor(points[hoverIndex].recorded_at)
+                    const boxWidth = 100
+                    const boxHeight = 34
+                    let boxX = hoverX - boxWidth / 2
+                    if (boxX < L) boxX = L
+                    if (boxX + boxWidth > R) boxX = R - boxWidth
+                    return (
+                      <g>
+                        <rect
+                          x={boxX}
+                          y={T}
+                          width={boxWidth}
+                          height={boxHeight}
+                          rx="4"
+                          fill="#0d0d0d"
+                          stroke="#F2B705"
+                          strokeWidth="1"
+                        />
+                        <text x={boxX + boxWidth / 2} y={T + 15} fill="#ffffff" fontSize="12" fontWeight="700" textAnchor="middle">
+                          ${points[hoverIndex].price.toFixed(2)}
+                        </text>
+                        <text x={boxX + boxWidth / 2} y={T + 28} fill="#9ca3af" fontSize="10" textAnchor="middle">
+                          {points[hoverIndex].recorded_at}
+                        </text>
+                      </g>
+                    )
+                  })()}
+                </g>
+              ) : null}
 
               <text x={L} y={H - 12} fill="#9ca3af" fontSize="11" textAnchor="start">
                 {fmtShort(chart.first.recorded_at)}
