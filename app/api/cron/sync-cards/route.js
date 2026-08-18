@@ -102,6 +102,7 @@ export async function GET(request) {
 
   const startTime = Date.now()
   const seenIds = new Set()
+  const today = new Date().toISOString().slice(0, 10)
 
   const setsProcessed = []
   const setsSkipped = []
@@ -149,6 +150,7 @@ export async function GET(request) {
       const prices = pricingJson.prices
       const skuProducts = skusJson?.products || {}
       const rows = []
+      const historyRows = []
 
       for (const p of products) {
         const cardId = "tcg" + set.category + "-" + p.id
@@ -160,6 +162,12 @@ export async function GET(request) {
         seenIds.add(cardId)
 
         const tcg = prices[String(p.id)]?.tcg || {}
+
+        const priceNormal = tcg["Normal"]?.market ?? null
+        const priceHolofoil = tcg["Holofoil"]?.market ?? null
+        const priceReverseHolofoil = tcg["Reverse Holofoil"]?.market ?? null
+        const price1stEdHolofoil = tcg["1st Edition Holofoil"]?.market ?? tcg["1st Edition"]?.market ?? null
+        const marketPrice = pickPrice(tcg, ["Holofoil", "Normal", "Reverse Holofoil"])
 
         rows.push({
           id: cardId,
@@ -174,15 +182,31 @@ export async function GET(request) {
           region: set.region,
           set_abbr: p.set_abbr || set.setAbbr,
           tcgplayer_url: p.tcgplayer_url,
-          tcgplayer_market_price: pickPrice(tcg, ["Holofoil", "Normal", "Reverse Holofoil"]),
-          price_normal: tcg["Normal"]?.market ?? null,
-          price_holofoil: tcg["Holofoil"]?.market ?? null,
-          price_reverse_holofoil: tcg["Reverse Holofoil"]?.market ?? null,
-          price_1st_edition_holofoil:
-            tcg["1st Edition Holofoil"]?.market ?? tcg["1st Edition"]?.market ?? null,
+          tcgplayer_market_price: marketPrice,
+          price_normal: priceNormal,
+          price_holofoil: priceHolofoil,
+          price_reverse_holofoil: priceReverseHolofoil,
+          price_1st_edition_holofoil: price1stEdHolofoil,
           raw_skus: skuProducts[String(p.id)] || null,
           synced_at: new Date().toISOString(),
         })
+
+        const variantPrices = [
+          ["Normal", priceNormal],
+          ["Holofoil", priceHolofoil],
+          ["Reverse Holofoil", priceReverseHolofoil],
+          ["1st Edition Holofoil", price1stEdHolofoil],
+        ]
+        let anyVariantSet = false
+        for (const [variant, price] of variantPrices) {
+          if (price != null) {
+            anyVariantSet = true
+            historyRows.push({ card_id: cardId, variant, price, recorded_at: today })
+          }
+        }
+        if (!anyVariantSet && marketPrice != null) {
+          historyRows.push({ card_id: cardId, variant: "Standard", price: marketPrice, recorded_at: today })
+        }
       }
 
       let setFailed = false
@@ -195,6 +219,14 @@ export async function GET(request) {
           break
         }
         cardsSynced += batch.length
+      }
+
+      if (!setFailed && historyRows.length > 0) {
+        for (const batch of chunk(historyRows, 500)) {
+          await supabase
+            .from("card_price_history")
+            .upsert(batch, { onConflict: "card_id,variant,recorded_at" })
+        }
       }
 
       if (setFailed) {
